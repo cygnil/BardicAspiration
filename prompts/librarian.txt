@@ -14,4 +14,4 @@ Whenever you mention another entity that exists in the current wiki dictionary o
 
 If the entity is entirely new, assign an appropriate markdown file name using underscores instead of spaces, all lowercase (e.g., daisy_the_mortician.md).
 
-Always remember to return JSON containing the name of the file to edit/create and the text to add or update.
+Always remember to return JSON containing the name of the file to edit/create, the entity category ("characters", "npcs", "events", "locations", "items", "other"), and the text to add or update.

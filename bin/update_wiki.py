@@ -77,9 +77,12 @@ You must output a raw JSON array of objects, and absolutely NO OTHER text format
 [
   {
     "file_name": "steve.md",
-    "player_knowledge_append": "- Session 1: Steve found a magical sword.\n"
+    "category": "characters",
+    "player_knowledge_append": "- Session 1: Steve found a magical sword.
+"
   }
 ]
+Valid categories are: characters, npcs, events, locations, items, other.
 """
     
     client = get_api_client(api_url, api_key)
@@ -130,11 +133,20 @@ You must output a raw JSON array of objects, and absolutely NO OTHER text format
         if not file_name:
             continue
             
+        # Classify and route
+        category = update.get("category", "other").lower().strip()
+        valid_cats = ["characters", "npcs", "events", "locations", "items", "other"]
+        if category not in valid_cats:
+            category = "other"
+            
+        target_cat_dir = os.path.join(wiki_dir, category)
+        os.makedirs(target_cat_dir, exist_ok=True)
+            
         # Ensure proper file formatting
         if not file_name.endswith(".md"):
             file_name += ".md"
             
-        file_path = os.path.join(wiki_dir, file_name)
+        file_path = os.path.join(target_cat_dir, file_name)
         
         # Prepare content to append
         pk_append = update.get("player_knowledge_append", "")
@@ -188,7 +200,7 @@ name: {file_name.replace('.md', '').replace('_', ' ').title()}
                 
             # Immediately add to master index to avoid orphaned ghost files
             entity_key = file_name.replace(".md", "")
-            wiki_index["entities"][entity_key] = file_name
+            wiki_index["entities"][entity_key] = f"{category}/{file_name}"
             with open(index_path, "w", encoding="utf-8") as f:
                 json.dump(wiki_index, f, indent=4)
                 
