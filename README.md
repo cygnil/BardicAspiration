@@ -31,13 +31,24 @@ This script will:
 
 After running `setup.sh`, you need to configure a few things before running the pipeline:
 
-1. **`secrets.json`**: Update this file with your Hugging Face token, which is required for PyAnnote.
+1. **`secrets.json`**: Update this file with your Hugging Face token, which is required for PyAnnote. Any API tokens may also be added here based on the API URL, although you can also specify them on the command line.
   ```json
   {
-    "HF_TOKEN": "PASTE_YOUR_HUGGINGFACE_TOKEN_HERE"
+    "HF_TOKEN": "PASTE_YOUR_HUGGINGFACE_TOKEN_HERE",
+    "API_KEYS": {
+      "api.openai.com": "sk-123456..."
+    }
   }
   ```
-2. **`campaign_registry.json`**: Populate this file with your party's lore names and keywords used in the campaign.
+
+2. **Create a Campaign**: Run the initialization script to scaffold a new campaign directory (which will hold transcripts, summaries, and recaps).
+  ```bash
+  source dnd_env/bin/activate
+  python create_campaign.py "Homebrouhaha"
+  ```
+  This creates `campaigns/Homebrouhaha/` containing a default registry and folders for its sessions.
+
+3. **`campaign_registry.json`**: Populate the newly created `campaigns/Homebrouhaha/campaign_registry.json` file with your party's lore names and keywords used in the campaign.
   ```json
   {
     "campaign_name": "Homebrouhaha",
@@ -83,7 +94,13 @@ source dnd_env/bin/activate
 
 Then, execute the primary script:
 ```bash
-python run_pipeline.py -i /path/to/session.mp3 -l 90
+python run_pipeline.py /path/to/session.mp3 my_campaign 1 -l 90 -m qwen2.5
 ```
-- `-i`: Path to the input audio file
-- `-l`: Maximum chunk length (e.g., 90)
+- `<input>`: Path to the raw session audio file (or tracks folder)
+- `<campaign>`: Name of the campaign (e.g., `netherdeep`)
+- `<session>`: Session number (e.g., `1`)
+- `-l`, `--length`: Target audio recap length in seconds (optional, default: 90)
+- `-m`, `--model`: Target local or remote model engine (optional, default: qwen2.5)
+- `-u`, `--url`: API URL for remote inference (optional)
+- `-k`, `--key`: API Key for remote inference (optional)
+- `-n`, `--next`: Peek at next session's summary to target foreshadowing (optional)
