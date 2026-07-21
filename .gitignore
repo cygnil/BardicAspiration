@@ -1,0 +1,7 @@
+__pycache__
+.venv/
+campaigns/
+dnd_env/
+nltk_data/
+
+secrets.json
