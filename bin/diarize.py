@@ -73,7 +73,7 @@ def run_diarization(campaign_name, session_num, force_overwrite=False, api_url=N
         with open("prompts/scribe.txt", "r", encoding="utf-8") as f:
             identity_prompt_template = f.read()
     except FileNotFoundError:
-         print("?? Warning: 'prompts/scribe.txt' missing. Skipping AI Diarization alignment.")
+         print("⚠️ Warning: 'prompts/scribe.txt' missing. Skipping AI Diarization alignment.")
          identity_prompt_template = None
          
     if identity_prompt_template:

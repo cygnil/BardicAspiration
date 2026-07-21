@@ -17,14 +17,27 @@ def run_command(command_args, step_name):
     
     process = subprocess.Popen(command_args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     
-    # Read binary character by character and decode to faithfully pass \r without Python's automatic universal newline (\n) conversion translation
+    # Read binary stream one byte at a time but accumulate until we have a full valid utf-8 character
+    buffer = b""
     while True:
-        char = process.stdout.read(1)
-        if not char and process.poll() is not None:
-            break
-        if char:
-            sys.stdout.write(char.decode('utf-8', errors='replace'))
+        byte = process.stdout.read(1)
+        if not byte:
+            if process.poll() is not None:
+                break
+            continue
+            
+        buffer += byte
+        try:
+            # Try to decode the accumulated bytes
+            char = buffer.decode('utf-8')
+            # Write directly to the underlying raw bytes buffer to prevent terminal parsing faults across WSL instances
+            sys.stdout.buffer.write(char.encode('utf-8'))
             sys.stdout.flush()
+            buffer = b""
+        except UnicodeDecodeError:
+            # If we get a decode error, it means we're in the middle of a multi-byte character
+            # Keep reading bytes into the buffer!
+            pass
             
     rc = process.poll()
     if rc != 0:
@@ -102,5 +115,5 @@ if __name__ == "__main__":
 
     print("========================================================")
     print("🎉 ALL PIPELINE TASKS COMPLETE SUCCESSFULY!")
-    print(f"¼️ Workspace Folder: {os.path.abspath(target_dir)}")
+    print(f"📂 Workspace Folder: {os.path.abspath(target_dir)}")
     print("========================================================")
