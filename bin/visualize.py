@@ -26,7 +26,10 @@ def generate_graph(campaign_name, session_num):
         print(f"❌ Error: Found neither annotated nor core transcript in '{target_dir}'.")
         return
 
-    output_image_path = os.path.join(target_dir, "graph.png")
+    graphs_dir = os.path.join(target_dir, "graphs")
+    os.makedirs(graphs_dir, exist_ok=True)
+    output_image_path_analytics = os.path.join(graphs_dir, "analytics_graph.png")
+    output_image_path_speakers = os.path.join(graphs_dir, "speaker_time_graph.png")
 
     with open(input_path, "r", encoding="utf-8") as f:
         session_manifest = json.load(f)
@@ -80,14 +83,14 @@ def generate_graph(campaign_name, session_num):
     pos_ic_t, pos_ic_v = zip(*pos_ic_data) if pos_ic_data else ([], [])
     neg_ic_t, neg_ic_v = zip(*neg_ic_data) if neg_ic_data else ([], [])
 
-    # Create the plot
-    # Use gridspec to allocate different heights to the subplots
-    fig = plt.figure(figsize=(12, 15))
-    gs = fig.add_gridspec(3, 1, height_ratios=[1, 1, 1.5])
-    ax1 = fig.add_subplot(gs[0])
-    ax2 = fig.add_subplot(gs[1], sharex=ax1)
-    ax3 = fig.add_subplot(gs[2])
-    fig.suptitle(f"{title} - Session Analytics", fontsize=16)
+    # Create the analytics plot
+    fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+    fig1.suptitle(f"{title} - Session Analytics", fontsize=16)
+    
+    # Create the pie chart plot
+    fig2 = plt.figure(figsize=(10, 10))
+    ax3 = fig2.add_subplot(111)
+    fig2.suptitle(f"{title} - Speaking Time", fontsize=16)
 
     # Process speaking time per speaker
     speaker_durations = {}
@@ -150,9 +153,11 @@ def generate_graph(campaign_name, session_num):
     if pos_ic_data: ax2.fill_between(pos_ic_t, 0, pos_ic_v, facecolor='green', alpha=0.3, interpolate=True)
     if neg_ic_data: ax2.fill_between(neg_ic_t, 0, neg_ic_v, facecolor='red', alpha=0.3, interpolate=True)
 
-    plt.tight_layout()
-    plt.savefig(output_image_path, dpi=300)
-    print(f"🎉 Success! Graph saved to: {output_image_path}")
+    fig1.tight_layout()
+    fig1.savefig(output_image_path_analytics, dpi=300)
+    fig2.tight_layout()
+    fig2.savefig(output_image_path_speakers, dpi=300)
+    print(f"🎉 Success! Graphs saved to: {graphs_dir}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate a graph of D&D session analytics.")
