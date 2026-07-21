@@ -217,8 +217,10 @@ if __name__ == "__main__":
     parser.add_argument("session", type=int, help="Session number")
     parser.add_argument("-f", "--force", action="store_true", help="Force overwrite existing session entries in the wiki")
     parser.add_argument("-m", "--model", default="qwen2.5", help="Target Ollama model engine.")
-    parser.add_argument("-u", "--url", help="API URL for remote inference.")
-    parser.add_argument("-k", "--key", help="API Key for remote inference.")
+    parser.add_argument("-u", "--api-url", help="API URL for remote inference.")
+    parser.add_argument("-k", "--api-key", help="API Key for remote inference.")
     
+    from utils import apply_defaults
+    apply_defaults(parser, 'update_wiki.py')
     args = parser.parse_args()
-    update_wiki(args.campaign, args.session, args.force, args.model, args.url, args.key)
+    update_wiki(args.campaign, args.session, args.force, args.model, args.api_url, args.api_key)

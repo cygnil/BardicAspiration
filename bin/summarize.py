@@ -178,6 +178,8 @@ if __name__ == "__main__":
     parser.add_argument("-u", "--api-url", help="Optional remote API base URL (e.g. OpenAI, Anthropic via LiteLLM, Groq). If not specified, uses local Ollama.")
     parser.add_argument("-k", "--api-key", help="Optional API key for the remote endpoint.")
     
+    from utils import apply_defaults
+    apply_defaults(parser, 'summarize.py')
     args = parser.parse_args()
     
     # Establish directory structures

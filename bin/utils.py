@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 import subprocess
@@ -21,6 +22,50 @@ def load_secrets():
             return json.load(f)
     except FileNotFoundError:
         return {}
+
+def apply_defaults(parser, script_name=None):
+    # Checks defaults.json for default argument values keyed to the script run.
+    try:
+        # Resolve the root workspace directory robustly
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        path = os.path.join(base_dir, "defaults.json")
+            
+        with open(path, "r", encoding="utf-8") as f:
+            defaults = json.load(f)
+
+        if script_name is None:
+            script_name = os.path.basename(sys.argv[0])
+            
+        script_defaults = defaults.get(script_name, {})
+        if script_defaults:
+            for arg_key, arg_val in script_defaults.items():
+                action = None
+                for a in parser._actions:
+                    if arg_key in a.option_strings:
+                        action = a
+                        break
+                
+                user_passed = False
+                if action:
+                    for opt in action.option_strings:
+                        if opt in sys.argv:
+                            user_passed = True
+                            break
+                            
+                if not user_passed:
+                    # Append it to sys.argv to override hardcoded parser definitions natively
+                    sys.argv.append(arg_key)
+                    
+                    if isinstance(arg_val, bool):
+                        if not arg_val:
+                            sys.argv.pop()
+                    else:
+                        sys.argv.append(str(arg_val))
+
+    except FileNotFoundError:
+        pass
+    except json.JSONDecodeError:
+        print("Warning: defaults.json contains invalid JSON.")
 
 def get_api_client(api_url=None, api_key=None):
     from urllib.parse import urlparse

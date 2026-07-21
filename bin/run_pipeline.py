@@ -52,11 +52,14 @@ if __name__ == "__main__":
     parser.add_argument("campaign", help="Name of the campaign (e.g. 'netherdeep')")
     parser.add_argument("session", type=int, help="Session number (e.g. 1)")
     parser.add_argument("-l", "--length", type=int, default=90, help="Target audio recap length in seconds (default: 90).")
-    parser.add_argument("-m", "--model", default="qwen2.5", help="Target Ollama model engine (default: qwen2.5).")
-    parser.add_argument("-u", "--url", help="API URL for remote inference (e.g., https://api.openai.com/v1).")
-    parser.add_argument("-k", "--key", help="API Key for remote inference.")
+    parser.add_argument("-m", "--model", default="qwen2.5", help="Target model engine (default: qwen2.5).")
+    parser.add_argument("-u", "--api-url", help="API URL for remote inference (e.g., https://api.openai.com/v1).")
+    parser.add_argument("-k", "--api-key", help="API Key for remote inference.")
     parser.add_argument("-n", "--next", action="store_true", help="Peek at session_num + 1 recap summary to target foreshadowing.")
+    parser.add_argument("--skip", nargs="+", type=int, default=[], help="List of step numbers to skip (1-8).")
     parser.add_argument("--info", type=str, help="Optional raw JSON string of extra session metadata to inject.")
+    from utils import apply_defaults
+    apply_defaults(parser, 'run_pipeline.py')
     args = parser.parse_args()
 
     campaign = args.campaign
@@ -68,50 +71,60 @@ if __name__ == "__main__":
     print(f"📦 Target Directory: {target_dir}")
 
     # --- STEP 1: TRANSCRIBE ---
-    transcribe_cmd = [ENV_PYTHON, "bin/transcribe.py", args.input, campaign, str(session_num), "-f"]
-    if args.info:
-        transcribe_cmd.extend(["--details", args.info])
-    run_command(transcribe_cmd, "WhisperX Audio Transcription")
+    if 1 not in args.skip:
+        transcribe_cmd = [ENV_PYTHON, "bin/transcribe.py", args.input, campaign, str(session_num), "-f"]
+        if args.info:
+            transcribe_cmd.extend(["--details", args.info])
+        run_command(transcribe_cmd, "WhisperX Audio Transcription")
 
     # --- STEP 2: DIARIZE ---
-    diarize_cmd = [ENV_PYTHON, "bin/diarize.py", campaign, str(session_num)]
-    run_command(diarize_cmd, "Scribe Identity Resolution")
+    if 2 not in args.skip:
+        diarize_cmd = [ENV_PYTHON, "bin/diarize.py", campaign, str(session_num)]
+        run_command(diarize_cmd, "Scribe Identity Resolution")
     
     # --- STEP 3: ANNOTATE ---
-    annotate_cmd = [ENV_PYTHON, "bin/annotate.py", campaign, str(session_num)]
-    run_command(annotate_cmd, "Zero-Shot Emotional & Contextual Inference")
+    if 3 not in args.skip:
+        annotate_cmd = [ENV_PYTHON, "bin/annotate.py", campaign, str(session_num)]
+        run_command(annotate_cmd, "Zero-Shot Emotional & Contextual Inference")
 
     # --- STEP 4: VISUALIZE ---
-    visualize_cmd = [ENV_PYTHON, "bin/visualize.py", campaign, str(session_num)]
-    run_command(visualize_cmd, "Visual Summary Generation")
+    if 4 not in args.skip:
+        visualize_cmd = [ENV_PYTHON, "bin/visualize.py", campaign, str(session_num)]
+        run_command(visualize_cmd, "Visual Summary Generation")
 
     # --- STEP 5: ANALYZE / SUMMARIZE ---
-    summarize_cmd = [ENV_PYTHON, "bin/summarize.py", campaign, str(session_num), "-m", args.model]
-    if args.url: summarize_cmd.extend(["-u", args.url])
-    if args.key: summarize_cmd.extend(["-k", args.key])
-    run_command(summarize_cmd, "LLM Context Mapping & Session Summary Synthesis")
+    if 5 not in args.skip:
+        summarize_cmd = [ENV_PYTHON, "bin/summarize.py", campaign, str(session_num)]
+        if args.api_url: summarize_cmd.extend(["-u", args.api_url])
+        if args.api_key: summarize_cmd.extend(["-k", args.api_key])
+        if args.model: summarize_cmd.extend(["-m", args.model])
+        run_command(summarize_cmd, "LLM Context Mapping & Session Summary Synthesis")
     
     # --- STEP 6: UPDATE WIKI ---
-    wiki_cmd = [ENV_PYTHON, "bin/update_wiki.py", campaign, str(session_num), "-m", args.model]
-    if args.url: wiki_cmd.extend(["-u", args.url])
-    if args.key: wiki_cmd.extend(["-k", args.key])
-    run_command(wiki_cmd, "Librarian Automated Entity Tracking")
+    if 6 not in args.skip:
+        wiki_cmd = [ENV_PYTHON, "bin/update_wiki.py", campaign, str(session_num)]
+        if args.api_url: wiki_cmd.extend(["-u", args.api_url])
+        if args.api_key: wiki_cmd.extend(["-k", args.api_key])
+        if args.model: wiki_cmd.extend(["-m", args.model])
+        run_command(wiki_cmd, "Librarian Automated Entity Tracking")
 
     # --- STEP 7: WIKI CROSS-REFERENCE RELINKING ---
-    relink_cmd = [ENV_PYTHON, "bin/relink_wiki.py", campaign]
-    run_command(relink_cmd, "Wiki Markdown Retroactive Entity Linker")
+    if 7 not in args.skip:
+        relink_cmd = [ENV_PYTHON, "bin/relink_wiki.py", campaign]
+        run_command(relink_cmd, "Wiki Markdown Retroactive Entity Linker")
 
     # --- STEP 8: AUDIO RECAP COMPILATION ---
-    recap_cmd = [
-        ENV_PYTHON, "bin/recap.py", campaign, str(session_num),
-        "-l", str(args.length), 
-        "-m", args.model
-    ]
-    if args.url: recap_cmd.extend(["-u", args.url])
-    if args.key: recap_cmd.extend(["-k", args.key])
-    if args.next: recap_cmd.append("--next")
-    
-    run_command(recap_cmd, "Pydub Cinematic Audio Recap Splicing")
+    if 8 not in args.skip:
+        recap_cmd = [
+            ENV_PYTHON, "bin/recap.py", campaign, str(session_num),
+            "-l", str(args.length)
+        ]
+        if args.api_url: recap_cmd.extend(["-u", args.api_url])
+        if args.api_key: recap_cmd.extend(["-k", args.api_key])
+        if args.model: recap_cmd.extend(["-m", args.model])
+        if args.next: recap_cmd.append("--next")
+        
+        run_command(recap_cmd, "Pydub Cinematic Audio Recap Splicing")
 
     print("========================================================")
     print("🎉 ALL PIPELINE TASKS COMPLETE SUCCESSFULY!")

@@ -277,5 +277,7 @@ if __name__ == "__main__":
     parser.add_argument("--db-threshold", type=float, default=-45.0, help="VAD noise floor threshold (default: -45.0).")
     parser.add_argument("--force", "-f", action="store_true", help="Bypass cached files and force execution.")
     parser.add_argument("--details", type=str)
+    from utils import apply_defaults
+    apply_defaults(parser, 'transcribe.py')
     args = parser.parse_args()
     process_pipeline(args.input_path, args.campaign_name, args.session_num, args.db_threshold, args.force, getattr(args, "details", None))

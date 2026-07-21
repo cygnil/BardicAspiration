@@ -48,7 +48,17 @@ After running `setup.sh`, you need to configure a few things before running the 
   ```
   This creates `campaigns/Homebrouhaha/` containing a default registry and folders for its sessions.
 
-3. **`campaign_registry.json`**: Populate the newly created `campaigns/Homebrouhaha/campaign_registry.json` file with your party's lore names and keywords used in the campaign.
+3. **`defaults.json`**: Optional base configuration object stored securely in the root repository. Defines all base variables mapped dynamically against specific tools. Use this to permanently set configuration properties like `--model` or `--api-url` globally instead of manually typing variables dynamically every time out of orchestrator. You configure this block like:
+  ```json
+  {
+      "recap.py": {
+          "--model": "gpt-5-mini",
+          "--api-url": "https://api.openai.com/v1"
+      }
+  }
+  ```
+
+4. **`campaign_registry.json`**: Populate the newly created `campaigns/Homebrouhaha/campaign_registry.json` file with your party's lore names and keywords used in the campaign.
   ```json
   {
     "campaign_name": "Homebrouhaha",
@@ -94,13 +104,15 @@ source dnd_env/bin/activate
 
 Then, execute the primary script:
 ```bash
-python run_pipeline.py /path/to/session.mp3 my_campaign 1 -l 90 -m qwen2.5
+python bin/run_pipeline.py /path/to/session.mp3 my_campaign 1 -l 90 --model qwen2.5
 ```
 - `<input>`: Path to the raw session audio file (or tracks folder)
 - `<campaign>`: Name of the campaign (e.g., `netherdeep`)
 - `<session>`: Session number (e.g., `1`)
 - `-l`, `--length`: Target audio recap length in seconds (optional, default: 90)
 - `-m`, `--model`: Target local or remote model engine (optional, default: qwen2.5)
-- `-u`, `--url`: API URL for remote inference (optional)
-- `-k`, `--key`: API Key for remote inference (optional)
+- `-u`, `--api-url`: API URL for remote inference (optional)
+- `-k`, `--api-key`: API Key for remote inference (optional)
 - `-n`, `--next`: Peek at next session's summary to target foreshadowing (optional)
+- `--skip`: List of step numbers to skip (1-8) (optional, e.g. `--skip 1 3`)
+- `--info`: Optional raw JSON string of extra session metadata to inject (optional)

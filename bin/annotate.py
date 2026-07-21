@@ -203,6 +203,8 @@ if __name__ == "__main__":
     parser.add_argument("campaign", help="Name of the campaign (e.g. 'netherdeep')")
     parser.add_argument("session", type=int, help="Session number (e.g. 1)")
     parser.add_argument("-e", "--emotion-threshold", type=float, default=0.35, help="Minimum probability (0-1) to preserve an emotion tag (default 0.35)")
+    from utils import apply_defaults
+    apply_defaults(parser, 'annotate.py')
     args = parser.parse_args()
         
     process_annotation(args.campaign, args.session, args.emotion_threshold)

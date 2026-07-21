@@ -164,5 +164,7 @@ if __name__ == "__main__":
     parser.add_argument("campaign", help="Name of the campaign (e.g. 'netherdeep')")
     parser.add_argument("session", type=int, help="Session number (e.g. 1)")
     
+    from utils import apply_defaults
+    apply_defaults(parser, 'visualize.py')
     args = parser.parse_args()
     generate_graph(args.campaign, args.session)

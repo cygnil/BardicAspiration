@@ -137,5 +137,7 @@ def relink_wiki(campaign):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Scan and repair/add markdown cross-links in the wiki.")
     parser.add_argument("campaign", help="Name of the campaign")
+    from utils import apply_defaults
+    apply_defaults(parser, 'relink_wiki.py')
     args = parser.parse_args()
     relink_wiki(args.campaign)

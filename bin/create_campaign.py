@@ -48,5 +48,7 @@ def create_campaign(name):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create a new D&D campaign structure.")
     parser.add_argument("name", help="Name of the campaign directory")
+    from utils import apply_defaults
+    apply_defaults(parser, 'create_campaign.py')
     args = parser.parse_args()
     create_campaign(args.name)
