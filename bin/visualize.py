@@ -81,8 +81,47 @@ def generate_graph(campaign_name, session_num):
     neg_ic_t, neg_ic_v = zip(*neg_ic_data) if neg_ic_data else ([], [])
 
     # Create the plot
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+    # Use gridspec to allocate different heights to the subplots
+    fig = plt.figure(figsize=(12, 15))
+    gs = fig.add_gridspec(3, 1, height_ratios=[1, 1, 1.5])
+    ax1 = fig.add_subplot(gs[0])
+    ax2 = fig.add_subplot(gs[1], sharex=ax1)
+    ax3 = fig.add_subplot(gs[2])
     fig.suptitle(f"{title} - Session Analytics", fontsize=16)
+
+    # Process speaking time per speaker
+    speaker_durations = {}
+    total_talk_time = 0.0
+    for seg in transcript:
+        speaker = seg.get("speaker", "UNKNOWN")
+        speaker_identities = session_manifest.get("speaker_identities", {})
+        # Map speaker key to actual name if available
+        if speaker in speaker_identities:
+            speaker = speaker_identities[speaker]
+            
+        # Ignore UNKNOWN or unresolved entries to keep the chart clean
+        if speaker == "UNKNOWN" or "UNKNOWN_SPEAKER" in speaker or "Unknown" in speaker:
+            continue
+            
+        duration = seg.get("end", 0) - seg.get("start", 0)
+        if duration > 0:
+            speaker_durations[speaker] = speaker_durations.get(speaker, 0) + duration
+            total_talk_time += duration
+            
+    # Sort speakers by duration
+    sorted_speakers = sorted(speaker_durations.items(), key=lambda x: x[1], reverse=True)
+    speakers, durations = zip(*sorted_speakers) if sorted_speakers else ([], [])
+    
+    # Plot Speaker Time (Pie Chart)
+    if sorted_speakers:
+        def autopct_format(pct, allvals):
+            absolute = int(pct/100.*sum(allvals))
+            return f"{pct:.1f}%\n({format_time(absolute, None)})"
+            
+        ax3.pie(durations, labels=speakers, autopct=lambda pct: autopct_format(pct, durations),
+                startangle=140, colors=plt.cm.Paired.colors, radius=0.7)
+        ax3.set_title("Speaking Time by Player")
+        ax3.axis('equal') # Equal aspect ratio ensures that pie is drawn as a circle.
 
     # Plot metrics from 0 to 1 on the top graph
     if emotion_data: ax1.plot(emo_t, emo_v, label="Emotion", color="red", alpha=0.7)
