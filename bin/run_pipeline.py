@@ -55,42 +55,42 @@ if __name__ == "__main__":
     print(f"📦 Target Directory: {target_dir}")
 
     # --- STEP 1: TRANSCRIBE ---
-    transcribe_cmd = [ENV_PYTHON, "transcribe.py", args.input, campaign, str(session_num), "-f"]
+    transcribe_cmd = [ENV_PYTHON, "bin/transcribe.py", args.input, campaign, str(session_num), "-f"]
     if args.info:
         transcribe_cmd.extend(["--details", args.info])
     run_command(transcribe_cmd, "WhisperX Audio Transcription")
 
     # --- STEP 2: DIARIZE ---
-    diarize_cmd = [ENV_PYTHON, "diarize.py", campaign, str(session_num)]
+    diarize_cmd = [ENV_PYTHON, "bin/diarize.py", campaign, str(session_num)]
     run_command(diarize_cmd, "Scribe Identity Resolution")
     
     # --- STEP 3: ANNOTATE ---
-    annotate_cmd = [ENV_PYTHON, "annotate.py", campaign, str(session_num)]
+    annotate_cmd = [ENV_PYTHON, "bin/annotate.py", campaign, str(session_num)]
     run_command(annotate_cmd, "Zero-Shot Emotional & Contextual Inference")
 
     # --- STEP 4: VISUALIZE ---
-    visualize_cmd = [ENV_PYTHON, "visualize.py", campaign, str(session_num)]
+    visualize_cmd = [ENV_PYTHON, "bin/visualize.py", campaign, str(session_num)]
     run_command(visualize_cmd, "Visual Summary Generation")
 
     # --- STEP 5: ANALYZE / SUMMARIZE ---
-    summarize_cmd = [ENV_PYTHON, "summarize.py", campaign, str(session_num), "-m", args.model]
+    summarize_cmd = [ENV_PYTHON, "bin/summarize.py", campaign, str(session_num), "-m", args.model]
     if args.url: summarize_cmd.extend(["-u", args.url])
     if args.key: summarize_cmd.extend(["-k", args.key])
     run_command(summarize_cmd, "LLM Context Mapping & Session Summary Synthesis")
     
     # --- STEP 6: UPDATE WIKI ---
-    wiki_cmd = [ENV_PYTHON, "update_wiki.py", campaign, str(session_num), "-m", args.model]
+    wiki_cmd = [ENV_PYTHON, "bin/update_wiki.py", campaign, str(session_num), "-m", args.model]
     if args.url: wiki_cmd.extend(["-u", args.url])
     if args.key: wiki_cmd.extend(["-k", args.key])
     run_command(wiki_cmd, "Librarian Automated Entity Tracking")
 
     # --- STEP 7: WIKI CROSS-REFERENCE RELINKING ---
-    relink_cmd = [ENV_PYTHON, "relink_wiki.py", campaign]
+    relink_cmd = [ENV_PYTHON, "bin/relink_wiki.py", campaign]
     run_command(relink_cmd, "Wiki Markdown Retroactive Entity Linker")
 
     # --- STEP 8: AUDIO RECAP COMPILATION ---
     recap_cmd = [
-        ENV_PYTHON, "recap.py", campaign, str(session_num),
+        ENV_PYTHON, "bin/recap.py", campaign, str(session_num),
         "-l", str(args.length), 
         "-m", args.model
     ]
