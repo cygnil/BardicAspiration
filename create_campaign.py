@@ -11,6 +11,16 @@ def create_campaign(name):
     os.makedirs(wiki_dir, exist_ok=True)
     
     registry_path = os.path.join(base_dir, "campaign_registry.json")
+    wiki_index_path = os.path.join(wiki_dir, "index.json")
+
+    if not os.path.exists(wiki_index_path):
+        wiki_index_data = {
+            "entities": {}
+        }
+        with open(wiki_index_path, "w", encoding="utf-8") as f:
+            json.dump(wiki_index_data, f, indent=4)
+        print(f"📝 Created default wiki index at: {wiki_index_path}")
+
     if not os.path.exists(registry_path):
         registry_data = {
             "campaign_name": name,

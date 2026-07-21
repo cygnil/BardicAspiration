@@ -1,3 +1,4 @@
+from utils import load_secrets
 import argparse
 import json
 import os
@@ -11,14 +12,17 @@ from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer, logging 
 hf_logging.set_verbosity_error()
 warnings.filterwarnings('ignore', category=UserWarning)
 
+secrets = load_secrets()
+HF_TOKEN = secrets.get("HF_TOKEN")
+
 def append_surprisal_metric(segments, device):
     print("📈 Analyzing dialogue surprisal (weirdness/uniqueness)...")
     start_time = time.time()
     
     # We use a very tiny causal LM to quickly calculate perplexity/loss
     model_id = "distilgpt2"
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-    model = AutoModelForCausalLM.from_pretrained(model_id)
+    tokenizer = AutoTokenizer.from_pretrained(model_id, token=HF_TOKEN)
+    model = AutoModelForCausalLM.from_pretrained(model_id, token=HF_TOKEN)
     
     # Move model to device
     if device == "cuda":
@@ -59,7 +63,7 @@ def append_emotional_valence(segments, device, emotion_threshold=0.35):
     print("🎭 Analyzing dialogue emotional valence...")
     start_time = time.time()
     # Load a highly accurate conversational emotion classifier
-    classifier = pipeline("text-classification", model="j-hartmann/emotion-english-distilroberta-base", device=0 if device == "cuda" else -1, top_k=None)
+    classifier = pipeline("text-classification", model="j-hartmann/emotion-english-distilroberta-base", device=0 if device == "cuda" else -1, top_k=None, token=HF_TOKEN)
     
     # Process text in batches (the classifier handles list inputs efficiently)
     texts_to_classify = [seg.get("text", "") for seg in segments]
@@ -101,7 +105,7 @@ def append_zero_shot_metrics(segments, device, threshold):
     start_time = time.time()
     
     # Using a stronger zero-shot classifier
-    classifier = pipeline("zero-shot-classification", model="cross-encoder/nli-deberta-v3-large", device=0 if device == "cuda" else -1)
+    classifier = pipeline("zero-shot-classification", model="cross-encoder/nli-deberta-v3-large", device=0 if device == "cuda" else -1, token=HF_TOKEN)
     texts_to_classify = [seg.get("text", "") for seg in segments]
     
     # Analyze in-character vs out-of-character

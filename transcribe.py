@@ -1,3 +1,4 @@
+from utils import animate_spinner
 import argparse
 import json
 import os
@@ -15,7 +16,7 @@ import subprocess
 
 SAMPLE_LENGTH = 3000  # Minimum sample length in milliseconds
 
-print("?? Script initializing...")
+print("⚡ Script initializing...")
 
 # --- NETWORK RESILIENCE: WINDOWS HOST LOOKUP ---
 def get_wsl_host_ip():
@@ -31,7 +32,7 @@ WINDOWS_HOST_IP = get_wsl_host_ip()
 def get_api_client(api_url=None, api_key=None):
     from urllib.parse import urlparse
     if api_url:
-        print(f"?? Connected to Remote API Host at: {api_url}")
+        print(f"⚡ Connected to Remote API Host at: {api_url}")
         if not api_key:
             secrets = load_secrets()
             domain = urlparse(api_url).hostname
@@ -39,7 +40,7 @@ def get_api_client(api_url=None, api_key=None):
                 api_key = secrets.get("API_KEYS", {}).get(domain)
         return OpenAI(base_url=api_url, api_key=api_key if api_key else "dummy_key")
     else:
-        print(f"?? Connected to Windows Ollama Host at: http://{WINDOWS_HOST_IP}:11434")
+        print(f"⚡ Connected to Windows Ollama Host at: http://{WINDOWS_HOST_IP}:11434")
         return OpenAI(base_url=f"http://{WINDOWS_HOST_IP}:11434/v1", api_key=api_key if api_key else "ollama")
 
 # --- CONFIGURATION & SECRET EXTRACTOR ---
@@ -48,7 +49,7 @@ def load_secrets():
         with open("secrets.json", "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
-        print("? Error: 'secrets.json' missing. Please create it with your HF_TOKEN.")
+        print("⚠️ Error: 'secrets.json' missing. Please create it with your HF_TOKEN.")
         sys.exit(1)
 
 def load_campaign_registry(campaign_dir):
@@ -56,10 +57,10 @@ def load_campaign_registry(campaign_dir):
     if os.path.exists(registry_path):
         with open(registry_path, "r", encoding="utf-8") as f:
             return json.load(f)
-    print(f"?? Notice: 'campaign_registry.json' not found in {campaign_dir}. Running with clean defaults.")
+    print(f"⚡ Notice: 'campaign_registry.json' not found in {campaign_dir}. Running with clean defaults.")
     return {"campaign_name": "Unknown Campaign", "entities": []}
 
-print("?? Loading local configuration assets...")
+print("⚡ Loading local configuration assets...")
 secrets = load_secrets()
 HF_TOKEN = secrets.get("HF_TOKEN")
 HOTWORDS = "[laughing], (laughing), [laughter], hahaha, hehehe"
@@ -69,11 +70,11 @@ HOTWORDS += ", [cheers], (cheering), [applause], woohoo, yay"
 HOTWORDS += ", [yells], (yelling), [shouts], hey!"
 
 def transcribe_and_align(audio_path, device, compute_type, model, alignment_model, metadata, db_threshold=-45.0):
-    print(f"?? Audio engine reading track target: {audio_path}")
+    print(f"⚡ Audio engine reading track target: {audio_path}")
     audio = whisperx.load_audio(audio_path)
     
     if db_threshold is not None:
-        print(f"?? Applying noise gating (Silence detection below {db_threshold} dB)...")
+        print(f"⚡ Applying noise gating (Silence detection below {db_threshold} dB)...")
         # Calculate RMS amplitude
         rms = np.abs(audio)
         # Avoid log10(0)
@@ -83,26 +84,17 @@ def transcribe_and_align(audio_path, device, compute_type, model, alignment_mode
         # Zero out audio below threshold
         audio[db < db_threshold] = 0.0
     
-    print("? Step 1/2: Processing deep voice transcription arrays...")
+    print("⚠️ Step 1/2: Processing deep voice transcription arrays...")
     result = model.transcribe(audio, batch_size=4, language="en")
     
-    print("?? Step 2/2: Aligning phonemes for sub-second precision...")
+    print("⚡ Step 2/2: Aligning phonemes for sub-second precision...")
     aligned_result = whisperx.align(
         result["segments"], alignment_model, metadata, audio, device, return_char_alignments=False
     )
     return aligned_result["segments"]
 
-def animate_spinner(stop_event, message):
-    spinner = ["?", "?", "?", "?", "?", "?", "?", "?", "?", "?"]
-    idx = 0
-    while not stop_event.is_set():
-        sys.stdout.write(f"\r{spinner[idx % len(spinner)]} {message}")
-        sys.stdout.flush()
-        idx += 1
-        time.sleep(0.1)
-    sys.stdout.write("\r") # Clean line when done
 
-def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0, force_overwrite=False):
+def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0, force_overwrite=False, extra_info=None):
     total_start_time = time.time()
     
     # Establish directory structures
@@ -112,15 +104,30 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
     
     if os.path.exists(target_dir):
         if not force_overwrite:
-            print(f"? Error: Target session directory '{target_dir}' already exists.")
+            print(f"⚠️ Error: Target session directory '{target_dir}' already exists.")
             print("To overwrite, supply the --force flag.")
             sys.exit(1)
         else:
-            print(f"?? Warning: Target session directory '{target_dir}' exists. Overwriting...")
+            print(f"⚡ Warning: Target session directory '{target_dir}' exists. Overwriting...")
     
     os.makedirs(target_dir, exist_ok=True)
     output_json_path = os.path.join(target_dir, "transcript.json")
     
+    session_info_path = os.path.join(target_dir, "session_info.json")
+    session_info = {
+        "session_num": str(session_num),
+        "original_audio_path": input_path
+    }
+    if extra_info:
+        try:
+            extra_data = json.loads(extra_info)
+            session_info.update(extra_data)
+        except Exception as e:
+            pass
+            
+    with open(session_info_path, "w", encoding="utf-8") as f:
+        json.dump(session_info, f, indent=4)
+        
     # Load Campaign Registry
     REGISTRY = load_campaign_registry(campaign_dir)
     HOTWORDS = ", ".join([k for e in REGISTRY.get("entities", []) for k in e.get("keywords", [])])
@@ -130,7 +137,7 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
     compute_type = "int8_float16"
     raw_segments = []
 
-    print(f"?? Engine active on [{device.upper()}] using {compute_type} precision.")
+    print(f"⚡ Engine active on [{device.upper()}] using {compute_type} precision.")
 
     
     # Needs whisper loaded FIRST!
@@ -143,10 +150,17 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
 
     stop_model.set()
     spinner_thread.join()
-    print(f"? Models loaded.                                                          ")
+    print(f"⚠️ Models loaded.                                                          ")
+
+    VALID_EXTENSIONS = ('.mp3', '.wav', '.flac', '.m4a', '.mp4')
 
     if os.path.isdir(input_path):
-        print(f"?? Processing multi-track directory ({len(audio_files)} tracks)...")
+        audio_files = [
+            os.path.join(input_path, f) for f in os.listdir(input_path) 
+            if f.lower().endswith(VALID_EXTENSIONS)
+        ]
+        
+        print(f"⚡ Processing multi-track directory ({len(audio_files)} tracks)...")
         multi_track_start_time = time.time()
         for file_path in tqdm(audio_files, desc="Overall Transcription Progress", unit="track"):
             speaker_identity = os.path.splitext(os.path.basename(file_path))[0].upper()
@@ -158,10 +172,10 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
                     "speaker": speaker_identity,
                     "text": seg.get("text", "")
                 })
-        print(f"? Multi-track transcription complete. ({time.time() - multi_track_start_time:.2f}s)")
+        print(f"⚠️ Multi-track transcription complete. ({time.time() - multi_track_start_time:.2f}s)")
         raw_segments.sort(key=lambda x: x["start"])
         processed_transcript = raw_segments
-    # ?? MODE B:
+    # ⚡ MODE B:
     elif os.path.isfile(input_path):
         import datetime
         from pydub import AudioSegment
@@ -169,8 +183,8 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
         audio = whisperx.load_audio(input_path)
         audio_duration = len(audio) / 16000 # Sample rate is 16kHz
         formatted_duration = str(datetime.timedelta(seconds=int(audio_duration)))
-        print(f"?? Audio loaded. Sequence duration: {formatted_duration}")
-        print(f"?? Loading PyDub Master Audio Segment...")
+        print(f"⚡ Audio loaded. Sequence duration: {formatted_duration}")
+        print(f"⚡ Loading PyDub Master Audio Segment...")
         master_audio = AudioSegment.from_file(input_path)
         
         stop_transcribe = threading.Event()
@@ -183,9 +197,9 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
             
         stop_transcribe.set()
         spinner_thread.join()
-        print(f"? Core transcription complete. ({time.time() - transcribe_start_time:.2f}s)                                     ")
+        print(f"⚠️ Core transcription complete. ({time.time() - transcribe_start_time:.2f}s)                                     ")
             
-        print("? Clearing transcription VRAM layers...")
+        print("⚠️ Clearing transcription VRAM layers...")
         del model, alignment_model
         torch.cuda.empty_cache()
             
@@ -200,9 +214,9 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
             
         stop_diarize.set()
         spinner_thread.join()
-        print(f"? Diarization complete. ({time.time() - diarize_model_start_time:.2f}s)")
+        print(f"⚠️ Diarization complete. ({time.time() - diarize_model_start_time:.2f}s)")
             
-        print("?? Correlating vocal tracks to script layers...")
+        print("⚡ Correlating vocal tracks to script layers...")
         dummy_result = {"segments": segments}
         final_result = whisperx.assign_word_speakers(diarize_segments, dummy_result)
             
@@ -252,8 +266,8 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
         json.dump(session_manifest, f, indent=4, ensure_ascii=False)
 
     total_runtime=time.time() - total_start_time
-    print(f"?? Success! Data compiled natively into local path: {output_json_path}")
-    print(f"?? Total script runtime: {total_runtime:.2f}s ({total_runtime / 60:.2f}m)")
+    print(f"⚡ Success! Data compiled natively into local path: {output_json_path}")
+    print(f"⚡ Total script runtime: {total_runtime:.2f}s ({total_runtime / 60:.2f}m)")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="WhisperX Multi-track engine + Audio Slicer")
@@ -262,5 +276,6 @@ if __name__ == "__main__":
     parser.add_argument("session_num", type=int, help="Chronological sequence ID of the session.")
     parser.add_argument("--db-threshold", type=float, default=-45.0, help="VAD noise floor threshold (default: -45.0).")
     parser.add_argument("--force", "-f", action="store_true", help="Bypass cached files and force execution.")
+    parser.add_argument("--details", type=str)
     args = parser.parse_args()
-    process_pipeline(args.input_path, args.campaign_name, args.session_num, args.db_threshold, args.force)
+    process_pipeline(args.input_path, args.campaign_name, args.session_num, args.db_threshold, args.force, getattr(args, "details", None))

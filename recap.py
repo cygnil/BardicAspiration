@@ -1,44 +1,12 @@
 import argparse
 import json
 import os
-import subprocess
 import sys
-import urllib.parse
-from openai import OpenAI
 from pydub import AudioSegment
 
 CROSSFADE_DURATION = 150
 
-# --- NETWORK RESILIENCE: WINDOWS HOST LOOKUP ---
-def get_wsl_host_ip():
-    try:
-        cmd = "ip route | grep default | awk '{print $3}'"
-        host_ip = subprocess.check_output(cmd, shell=True).decode().strip()
-        return host_ip if host_ip else "127.0.0.1"
-    except Exception:
-        return "127.0.0.1"
-
-WINDOWS_HOST_IP = get_wsl_host_ip()
-
-def load_secrets():
-    try:
-        with open("secrets.json", "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
-
-def get_api_client(api_url=None, api_key=None):
-    if api_url:
-        print(f"🔗 Connected to Remote API Host at: {api_url}")
-        if not api_key:
-            secrets = load_secrets()
-            domain = urllib.parse.urlparse(api_url).hostname
-            if domain:
-                api_key = secrets.get("API_KEYS", {}).get(domain)
-        return OpenAI(base_url=api_url, api_key=api_key if api_key else "dummy_key")
-    else:
-        print(f"🔗 Connected to Windows Ollama Host at: http://{WINDOWS_HOST_IP}:11434")
-        return OpenAI(base_url=f"http://{WINDOWS_HOST_IP}:11434/v1", api_key="ollama")
+from utils import get_api_client, get_wsl_host_ip
 
 # --- DATA LOADING ---
 def load_json(path):
@@ -101,7 +69,8 @@ def rank_audio_segments(client, transcript_data, registry, model_name, summary_t
         is_local = False
         if client.base_url:
             base_url_str = str(client.base_url)
-            if WINDOWS_HOST_IP in base_url_str or "localhost" in base_url_str or "127.0.0.1" in base_url_str:
+            windows_ip = get_wsl_host_ip()
+            if windows_ip in base_url_str or "localhost" in base_url_str or "127.0.0.1" in base_url_str:
                 is_local = True
 
         if is_local:
