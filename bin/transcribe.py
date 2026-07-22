@@ -159,14 +159,30 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
     spinner_thread.join()
     print(f"⚠️ Models loaded.                                                          ")
 
-    VALID_EXTENSIONS = ('.mp3', '.wav', '.flac', '.m4a', '.mp4')
+    def is_valid_audio(file_path):
+        """Attempts to load audio to determine if it's a valid media file."""
+        if not os.path.isfile(file_path): return False
+        try:
+            # We use a fast try-catch, ffmpeg will complain if it can't read the header
+            # rather than using whisperx.load_audio to load the entire array into memory just to check.
+            import ffmpeg
+            ffmpeg.probe(file_path)
+            return True
+        except Exception:
+            return False
 
     if os.path.isdir(input_path):
-        audio_files = [
-            os.path.join(input_path, f) for f in os.listdir(input_path) 
-            if f.lower().endswith(VALID_EXTENSIONS)
-        ]
+        print(f"⚡ Scanning directory for valid media tracks...")
+        audio_files = []
+        for f in os.listdir(input_path):
+            full_path = os.path.join(input_path, f)
+            if is_valid_audio(full_path):
+                audio_files.append(full_path)
         
+        if not audio_files:
+            print(f"❌ Error: No readable media files found in directory '{input_path}'.")
+            sys.exit(1)
+            
         print(f"⚡ Processing multi-track directory ({len(audio_files)} tracks)...")
         multi_track_start_time = time.time()
         for file_path in tqdm(audio_files, desc="Overall Transcription Progress", unit="track"):
@@ -191,7 +207,13 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
         import datetime
         from pydub import AudioSegment
         
-        audio = whisperx.load_audio(input_path)
+        try:
+            audio = whisperx.load_audio(input_path)
+        except Exception as e:
+            print(f"❌ Error: Failed to open media file '{input_path}'. It may be corrupted or an unsupported format.")
+            print(f"   Details: {e}")
+            sys.exit(1)
+            
         audio_duration = len(audio) / 16000 # Sample rate is 16kHz
         formatted_duration = str(datetime.timedelta(seconds=int(audio_duration)))
         print(f"⚡ Audio loaded. Sequence duration: {formatted_duration}")
