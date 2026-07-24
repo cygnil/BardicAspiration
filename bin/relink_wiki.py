@@ -17,7 +17,11 @@ def relink_wiki(campaign):
     except Exception:
         wiki_index = {"entities": {}}
 
-    valid_files = set(f for f in os.listdir(wiki_dir) if f.endswith(".md"))
+    valid_files = set()
+    for root, dirs, files in os.walk(wiki_dir):
+        for f in files:
+            if f.endswith(".md"):
+                valid_files.add(os.path.relpath(os.path.join(root, f), wiki_dir).replace('\\', '/'))
 
     # Build mapping of entity names to markdown files
     entity_map = {}
@@ -74,7 +78,11 @@ def relink_wiki(campaign):
             nonlocal broken_links_fixed
             text = match.group(1)
             link = match.group(2)
-            if link not in valid_files:
+            
+            # Resolve relative links
+            current_dir = os.path.dirname(current_file)
+            target = os.path.normpath(os.path.join(current_dir, link)).replace('\\', '/')
+            if target not in valid_files:
                 broken_links_fixed += 1
                 return text
             return match.group(0)
@@ -107,11 +115,16 @@ def relink_wiki(campaign):
                 
                 # Protect newly added links by using a temporary token during the replacement loop
                 # This prevents "Steve" from overwriting the inside of "[Disco Steve](...)"
-                def add_link(match):
+                
+                # Calculate relative path from current_file to target_file
+                current_dir = os.path.dirname(current_file)
+                rel_target = os.path.relpath(target_file, current_dir).replace('\\', '/')
+                
+                def add_link(match, rel_target=rel_target):
                     nonlocal new_links_added, p_counter
                     new_links_added += 1
                     pid = f"@@@LINK{p_counter}@@@"
-                    placeholders[pid] = f"[{match.group(1)}]({target_file})"
+                    placeholders[pid] = f"[{match.group(1)}]({rel_target})"
                     p_counter += 1
                     return pid
                     
