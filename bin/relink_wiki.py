@@ -5,69 +5,53 @@ import re
 import sys
 
 def relink_wiki(campaign):
-    wiki_dir = os.path.join("campaigns", campaign, "wiki")
+    wiki_dir = os.path.join('campaigns', campaign, 'wiki')
     if not os.path.exists(wiki_dir):
-        print(f"❌ Error: Wiki directory not found for campaign '{campaign}'.")
+        print(f'❌ Wiki directory not found for {campaign}.')
         sys.exit(1)
-
-    index_path = os.path.join(wiki_dir, "index.json")
-    try:
-        with open(index_path, "r", encoding="utf-8") as f:
-            wiki_index = json.load(f)
-    except Exception:
-        wiki_index = {"entities": {}}
-
-    valid_files = set()
-    for root, dirs, files in os.walk(wiki_dir):
-        for f in files:
-            if f.endswith(".md"):
-                valid_files.add(os.path.relpath(os.path.join(root, f), wiki_dir).replace('\\', '/'))
-
-    # Build mapping of entity names to markdown files
-    entity_map = {}
-    for entity_key, file_name in wiki_index.get("entities", {}).items():
-        if file_name in valid_files:
-            name_str = entity_key.replace("_", " ")
-            entity_map[name_str.lower()] = file_name
+        
+    index_path = os.path.join(wiki_dir, 'index.json')
+    if not os.path.exists(index_path):
+        print(f'❌ index.json not found in {wiki_dir}.')
+        sys.exit(1)
+        
+    with open(index_path, 'r', encoding='utf-8') as f:
+        wiki_index = json.load(f)
+        
+    entities = wiki_index.get('entities', {})
     
-    # Pull any extra keywords from registry
-    registry_path = os.path.join("campaigns", campaign, "campaign_registry.json")
-    if os.path.exists(registry_path):
-        try:
-            with open(registry_path, "r", encoding="utf-8") as f:
-                reg_data = json.load(f)
-                for ent in reg_data.get("entities", []):
-                    # Attempt to correlate the registry entity with a real wiki file
-                    for test_key in ["character_full_name", "character_short_name", "name"]:
-                        val = ent.get(test_key, "")
-                        if not val: continue
-                        
-                        likely_file = val.replace(" ", "_").lower() + ".md"
-                        if likely_file in valid_files:
-                            # We found the associated file! Bind all its aliases.
-                            aliases = []
-                            aliases.append(ent.get("character_full_name"))
-                            aliases.append(ent.get("character_short_name"))
-                            aliases.append(ent.get("name"))
-                            aliases.extend(ent.get("keywords", []))
-                            
-                            for a in aliases:
-                                if a and a.lower() not in entity_map:
-                                    entity_map[a.lower()] = likely_file
-                            break # Move to next entity
-        except Exception:
-            pass
+    # We create a list of tuples: (name_lower, target_relative_path)
+    sorted_entities = []
+    for name, path in entities.items():
+        sorted_entities.append((name.replace('_', ' ').lower(), path))
 
-    # Sort entities by length descending to match "Ifolon River" before "Ifolon", preventing partial-match bugs
-    sorted_entities = sorted(entity_map.items(), key=lambda x: len(x[0]), reverse=True)
+    # Sort entities by length of name to avoid sub-word overlap
+    sorted_entities = sorted(sorted_entities, key=lambda x: len(x[0]), reverse=True)
+    
+    # Gather all valid files we can link to and relink
+    valid_files = set(entities.values())
+    valid_wiki_files = set(entities.values())
+    
+    # Add session summaries to the list of files to process and link
+    sessions_dir = os.path.join('campaigns', campaign, 'sessions')
+    if os.path.exists(sessions_dir):
+        for root, dirs, files in os.walk(sessions_dir):
+            for file in files:
+                if file == 'summary.md':
+                    # Path relative to wiki_dir so it plays nice with relinking math
+                    rel_summary_path = os.path.relpath(os.path.join(root, file), wiki_dir).replace('\\\\\\\\', '/')
+                    valid_files.add(rel_summary_path)
 
     broken_links_fixed = 0
     new_links_added = 0
+    
+    print(f'Scanning {len(valid_files)} wiki entries and session summaries...')
 
-    print(f"🔍 Scanning {len(valid_files)} wiki entries...")
-
-    for current_file in valid_files:
+    for current_file in list(valid_files):
         file_path = os.path.join(wiki_dir, current_file)
+        if not os.path.exists(file_path):
+            continue
+            
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
@@ -80,9 +64,13 @@ def relink_wiki(campaign):
             link = match.group(2)
             
             # Resolve relative links
-            current_dir = os.path.dirname(current_file)
-            target = os.path.normpath(os.path.join(current_dir, link)).replace('\\', '/')
-            if target not in valid_files:
+            import posixpath
+            base = 'dummy/wiki/'
+            current_abs = posixpath.normpath(posixpath.join(base, current_file))
+            current_dir_abs = posixpath.dirname(current_abs)
+            target_abs = posixpath.normpath(posixpath.join(current_dir_abs, link))
+            target = posixpath.relpath(target_abs, base)
+            if target not in valid_wiki_files:
                 broken_links_fixed += 1
                 return text
             return match.group(0)
@@ -117,8 +105,12 @@ def relink_wiki(campaign):
                 # This prevents "Steve" from overwriting the inside of "[Disco Steve](...)"
                 
                 # Calculate relative path from current_file to target_file
-                current_dir = os.path.dirname(current_file)
-                rel_target = os.path.relpath(target_file, current_dir).replace('\\', '/')
+                import posixpath
+                base = 'dummy/wiki/'
+                current_abs = posixpath.normpath(posixpath.join(base, current_file))
+                target_abs = posixpath.normpath(posixpath.join(base, target_file))
+                current_dir_abs = posixpath.dirname(current_abs)
+                rel_target = posixpath.relpath(target_abs, current_dir_abs)
                 
                 def add_link(match, rel_target=rel_target):
                     nonlocal new_links_added, p_counter

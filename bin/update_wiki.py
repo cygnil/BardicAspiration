@@ -189,8 +189,7 @@ Valid categories are: characters, npcs, events, locations, items, other.
 
         else:
             # Handle creating a new file
-            new_content = f"""---
-name: {file_name.replace('.md', '').replace('_', ' ').title()}
+            new_content = f"""# {file_name.replace('.md', '').replace('_', ' ').title()}
 ---
 ## Player Knowledge
 {pk_append}
