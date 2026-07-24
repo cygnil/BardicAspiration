@@ -1,15 +1,73 @@
 body {
     font-family: system-ui, -apple-system, sans-serif;
     line-height: 1.6;
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 2rem;
+    margin: 0;
+    padding: 0;
     color: #333;
     background-color: #f9f9f9;
 }
+#layout {
+    display: flex;
+    min-height: 100vh;
+}
+#sidebar {
+    width: 250px;
+    background: #e9ecef;
+    border-right: 1px solid #ddd;
+    padding: 2rem 1rem;
+    overflow-y: auto;
+}
+#nav-content ul {
+    list-style-type: none;
+    padding-left: 1rem;
+}
+#nav-content > ul {
+    padding-left: 0;
+}
+#nav-content li {
+    margin-bottom: 0.5rem;
+}
+#nav-content a {
+    color: #444;
+    text-decoration: none;
+    display: block;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+}
+#nav-content a:hover, #nav-content a.active {
+    background: #007bff;
+    color: white;
+}
+#nav-content strong {
+    display: block;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    color: #222;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 0.2rem;
+}
+.collapsible {
+    cursor: pointer;
+}
+.collapsible::after {
+    content: '\02795'; /* Plus sign */
+    font-size: 13px;
+    float: right;
+    margin-left: 5px;
+}
+.active-collapse::after {
+    content: "\2796"; /* Minus sign */
+}
+.nested {
+    display: none;
+}
 #content {
+    flex-grow: 1;
     background: #fff;
     padding: 2rem 3rem;
+    box-sizing: border-box;
+    max-width: 900px;
+    margin: 2rem auto;
     border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
