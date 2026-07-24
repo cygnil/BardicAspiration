@@ -7,14 +7,14 @@ import threading
 from utils import get_api_client, animate_spinner
 
 # --- 🛠️ DATA PARSERS ---
-def load_session_package(path):
+def load_session_file(path):
     if not os.path.exists(path):
         print(f"❌ Error: Input session file '{path}' not found.")
         sys.exit(1)
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def run_analysis_agent(session_data, client, model_name="qwen2.5"):
+def run_analysis_agent(session_data, session_metadata, client, model_name="qwen2.5"):
     transcript = session_data["transcript"]
     
     # We provide the FULL lexicon down to the LLM agent for plot alignment
@@ -54,7 +54,7 @@ def run_analysis_agent(session_data, client, model_name="qwen2.5"):
         with open("prompts/chronicler.txt", "r", encoding="utf-8") as f:
             master_reduce_prompt_template = f.read()
 
-        master_payload = f"Campaign Context:\n{registry_info}\n\nTranscript:\n{transcript_text}"
+        master_payload = f"Session Metadata:\n{json.dumps(session_metadata, indent=2)}\n\nCampaign Context:\n{registry_info}\n\nTranscript:\n{transcript_text}"
 
         stop_reduce = threading.Event()
         reduce_spinner = threading.Thread(target=animate_spinner, args=(stop_reduce, "Compiling and structuring master markdown matrix in one shot..."))
@@ -159,6 +159,7 @@ def run_analysis_agent(session_data, client, model_name="qwen2.5"):
         model=model_name,
         messages=[
             {"role": "system", "content": master_reduce_prompt_template},
+            {"role": "user", "content": f"Session Metadata:\n{json.dumps(session_metadata, indent=2)}"},
             {"role": "user", "content": master_payload}
         ]
     )
@@ -189,6 +190,7 @@ if __name__ == "__main__":
     # Check for annotated first, fallback to standard transcript
     annotated_path = os.path.join(target_dir, "transcript_annotated.json")
     standard_path = os.path.join(target_dir, "transcript.json")
+    metadata_path = os.path.join(target_dir, "session_info.json")
     
     if os.path.exists(annotated_path):
         input_path = annotated_path
@@ -201,11 +203,12 @@ if __name__ == "__main__":
     output_path = os.path.join(target_dir, "summary.md")
         
     print(f"📥 Loading session artifact: {input_path}")
-    data = load_session_package(input_path)
+    data = load_session_file(input_path)
+    metadata = load_session_file(metadata_path)
     
     client = get_api_client(api_url=args.api_url, api_key=args.api_key)
     
-    markdown_report = run_analysis_agent(data, client, model_name=args.model)
+    markdown_report = run_analysis_agent(data, metadata, client, model_name=args.model)
     
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(markdown_report)

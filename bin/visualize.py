@@ -17,6 +17,7 @@ def generate_graph(campaign_name, session_num):
     # Check for annotated first, fallback to standard transcript
     annotated_path = os.path.join(target_dir, "transcript_annotated.json")
     standard_path = os.path.join(target_dir, "transcript.json")
+    metadata_path = os.path.join(target_dir, "session_info.json")
     
     if os.path.exists(annotated_path):
         input_path = annotated_path
@@ -33,8 +34,12 @@ def generate_graph(campaign_name, session_num):
 
     with open(input_path, "r", encoding="utf-8") as f:
         session_manifest = json.load(f)
+    
+    if os.path.exists(metadata_path):
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            metadata = json.load(f)
+            title = metadata.get("title", "Session Graph")
 
-    title = session_manifest.get("recap_title", "Session Graph")
     transcript = session_manifest.get("transcript", [])
     
     if not transcript:
@@ -158,6 +163,15 @@ def generate_graph(campaign_name, session_num):
     fig2.tight_layout()
     fig2.savefig(output_image_path_speakers, dpi=300)
     print(f"🎉 Success! Graphs saved to: {graphs_dir}")
+
+    md_output_path = os.path.join(target_dir, "graphs.md")
+    with open(md_output_path, "w", encoding="utf-8") as f:
+        f.write(f"# {title} - Session Graphs\n\n")
+        f.write("## Analytics\n")
+        f.write("![Analytics Graph](graphs/analytics_graph.png)\n\n")
+        f.write("## Speaker Time\n")
+        f.write("![Speaker Time Graph](graphs/speaker_time_graph.png)\n")
+    print(f"🎉 Success! Markdown file saved to: {md_output_path}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate a graph of D&D session analytics.")

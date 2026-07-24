@@ -28,6 +28,16 @@ async function loadMarkdown() {
         // Parse and render the Markdown content
         contentDiv.innerHTML = marked.parse(markdown);
         
+        // Fix relative image paths to be relative to the markdown file's directory
+        const images = contentDiv.querySelectorAll('img');
+        const currentDir = path.substring(0, path.lastIndexOf('/'));
+        images.forEach(img => {
+            const src = img.getAttribute('src');
+            if (src && !src.startsWith('http') && !src.startsWith('/')) {
+                img.src = currentDir + '/' + src;
+            }
+        });
+
         // Intercept links to load Markdown files within the viewer
         const links = contentDiv.querySelectorAll('a');
         links.forEach(link => {
@@ -202,7 +212,13 @@ async function loadSidebar(currentPath, campaignWikiDir) {
                             // ignore, fallback to default title
                         }
                         
-                        sessionsHtml += `<li><a href="?path=${summaryPath}">${title}</a></li>`;
+                        sessionsHtml += `<li><strong class="collapsible">${title}</strong><ul class="nested">`;
+                        sessionsHtml += `<li><a href="?path=${summaryPath}">Summary</a></li>`;
+                        
+                        const graphsPath = sessionsDirUrl + sessionId + '/graphs.md';
+                        sessionsHtml += `<li><a href="?path=${graphsPath}">Graphs</a></li>`;
+                        
+                        sessionsHtml += '</ul></li>';
                     }
                 }
                 
