@@ -1,5 +1,6 @@
 from utils import animate_spinner
 import argparse
+import difflib
 import json
 import os
 import sys
@@ -125,7 +126,7 @@ def transcribe_and_align(audio_path, device, compute_type, model, alignment_mode
     return aligned_result["segments"], audio_duration_sec
 
 
-def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0, force_overwrite=False, extra_info=None):
+def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0, force_overwrite=False, extra_info=None, dedup=False):
     total_start_time = time.time()
     
     # Establish directory structures
@@ -239,7 +240,26 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
                 })
         print(f"⚠️ Multi-track transcription complete. ({time.time() - multi_track_start_time:.2f}s)")
         raw_segments.sort(key=lambda x: x["start"])
-        processed_transcript = raw_segments
+        
+        processed_transcript = []
+        if dedup:
+            print("⚡ Deduplicating overlapping multi-track segments based on dB...")
+            for seg in raw_segments:
+                found_duplicate = False
+                for i in range(max(0, len(processed_transcript) - 10), len(processed_transcript)):
+                    kept_seg = processed_transcript[i]
+                    if abs(seg['start'] - kept_seg['start']) < 2.0:
+                        similarity = difflib.SequenceMatcher(None, seg['text'], kept_seg['text']).ratio()
+                        if similarity > 0.6:
+                            found_duplicate = True
+                            if seg.get('db', -100.0) > kept_seg.get('db', -100.0):
+                                processed_transcript[i] = seg
+                            break
+                if not found_duplicate:
+                    processed_transcript.append(seg)
+        else:
+            processed_transcript = raw_segments
+            
     # ⚡ MODE B:
     elif os.path.isfile(input_path):
         import datetime
@@ -352,6 +372,7 @@ if __name__ == "__main__":
     parser.add_argument("campaign_name", help="Name of the campaign this sequence belongs to.")
     parser.add_argument("session_num", type=int, help="Chronological sequence ID of the session.")
     parser.add_argument("--db-threshold", type=float, default=-45.0, help="VAD noise floor threshold (default: -45.0).")
+    parser.add_argument("--dedup", "-d", action="store_true", help="Deduplicate microphone bleed across multi-track processing based on peak dB comparison.")
     parser.add_argument("--force", "-f", action="store_true", help="Bypass cached files and force execution.")
     parser.add_argument("--details", type=str)
     from utils import apply_defaults
@@ -361,4 +382,4 @@ if __name__ == "__main__":
     if args.db_threshold is not None and args.db_threshold > 0:
         args.db_threshold = -args.db_threshold
         
-    process_pipeline(args.input_path, args.campaign_name, args.session_num, args.db_threshold, args.force, getattr(args, "details", None))
+    process_pipeline(args.input_path, args.campaign_name, args.session_num, args.db_threshold, args.force, getattr(args, "details", None), args.dedup)
