@@ -90,6 +90,11 @@ def transcribe_and_align(audio_path, device, compute_type, model, alignment_mode
         db = 20 * np.log10(rms)
         # Zero out audio below threshold
         audio[db < db_threshold] = 0.0
+    else:
+        # Still need db calculated for segment logging if db_threshold isn't used for gating
+        rms = np.abs(audio)
+        rms = np.maximum(rms, 1e-10)
+        db = 20 * np.log10(rms)
     
     print("⚠️ Step 1/2: Processing deep voice transcription arrays...")
     result = model.transcribe(audio, batch_size=4, language="en")
@@ -98,6 +103,25 @@ def transcribe_and_align(audio_path, device, compute_type, model, alignment_mode
     aligned_result = whisperx.align(
         result["segments"], alignment_model, metadata, audio, device, return_char_alignments=False
     )
+    
+    # Add peak dB calculation per segment
+    sr = 16000
+    for seg in aligned_result["segments"]:
+        start_sample = int(seg.get("start", 0) * sr)
+        end_sample = int(seg.get("end", 0) * sr)
+        # clamp to array bounds safely
+        start_sample = max(0, min(start_sample, len(db)))
+        end_sample = max(0, min(end_sample, len(db)))
+        
+        if end_sample > start_sample:
+            # find peak db in this segment
+            # use 95th percentile to avoid outlier clicks but represent volume well
+            peak_db = np.percentile(db[start_sample:end_sample], 95)
+        else:
+            peak_db = -100.0 # silence fallback
+            
+        seg["db"] = round(float(peak_db), 2)
+        
     return aligned_result["segments"], audio_duration_sec
 
 
@@ -140,13 +164,49 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
     HOTWORDS = ", ".join([k for e in REGISTRY.get("entities", []) for k in e.get("keywords", [])])
     HOTWORDS += ", [laughs], (laughing), [laughter], hahaha, hehehe, [cheering], [yelling], [applause]"
 
+    # Ensure the input files are accessible and valid before spending time loading whisper
+    def is_valid_audio(file_path):
+        """Attempts to load audio to determine if it's a valid media file."""
+        if not os.path.isfile(file_path): return False
+        try:
+            # First, check extensions to avoid ffmpeg overhead/issues for known bad/good extensions
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext in ['.wav', '.mp3', '.m4a', '.flac', '.ogg', '.opus', '.webm', '.aac']:
+                return True
+                
+            # We use a fast try-catch, ffmpeg will complain if it can't read the header
+            # rather than using whisperx.load_audio to load the entire array into memory just to check.
+            import ffmpeg
+            ffmpeg.probe(file_path)
+            return True
+        except Exception:
+            return False
+
+    audio_files = []
+    if os.path.isdir(input_path):
+        print(f"⚡ Scanning directory for valid media tracks...")
+        for f in os.listdir(input_path):
+            full_path = os.path.join(input_path, f)
+            if is_valid_audio(full_path):
+                audio_files.append(full_path)
+        
+        if not audio_files:
+            print(f"❌ Error: No readable media files found in directory '{input_path}'.")
+            sys.exit(1)
+    elif os.path.isfile(input_path):
+        if not is_valid_audio(input_path):
+            print(f"❌ Error: Input file '{input_path}' is not a valid audio file.")
+            sys.exit(1)
+    else:
+        print(f"❌ Error: Input path '{input_path}' does not exist.")
+        sys.exit(1)
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
     compute_type = "int8_float16"
     raw_segments = []
 
     print(f"⚡ Engine active on [{device.upper()}] using {compute_type} precision.")
 
-    
     # Needs whisper loaded FIRST!
     stop_model = threading.Event()
     spinner_thread = threading.Thread(target=animate_spinner, args=(stop_model, f"Loading WhisperX (large-v3) into {device.upper()} VRAM..."))
@@ -159,30 +219,7 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
     spinner_thread.join()
     print(f"⚠️ Models loaded.                                                          ")
 
-    def is_valid_audio(file_path):
-        """Attempts to load audio to determine if it's a valid media file."""
-        if not os.path.isfile(file_path): return False
-        try:
-            # We use a fast try-catch, ffmpeg will complain if it can't read the header
-            # rather than using whisperx.load_audio to load the entire array into memory just to check.
-            import ffmpeg
-            ffmpeg.probe(file_path)
-            return True
-        except Exception:
-            return False
-
     if os.path.isdir(input_path):
-        print(f"⚡ Scanning directory for valid media tracks...")
-        audio_files = []
-        for f in os.listdir(input_path):
-            full_path = os.path.join(input_path, f)
-            if is_valid_audio(full_path):
-                audio_files.append(full_path)
-        
-        if not audio_files:
-            print(f"❌ Error: No readable media files found in directory '{input_path}'.")
-            sys.exit(1)
-            
         print(f"⚡ Processing multi-track directory ({len(audio_files)} tracks)...")
         multi_track_start_time = time.time()
         for file_path in tqdm(audio_files, desc="Overall Transcription Progress", unit="track"):
@@ -197,7 +234,8 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
                     "start": seg.get("start", 0.0),
                     "end": seg.get("end", 0.0),
                     "speaker": speaker_identity,
-                    "text": seg.get("text", "")
+                    "text": seg.get("text", ""),
+                    "db": seg.get("db", -100.0)
                 })
         print(f"⚠️ Multi-track transcription complete. ({time.time() - multi_track_start_time:.2f}s)")
         raw_segments.sort(key=lambda x: x["start"])
@@ -260,7 +298,8 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
                 "start": round(seg.get("start", 0.0), 2),
                 "end": round(seg.get("end", 0.0), 2),
                 "speaker": seg.get("speaker", "UNKNOWN_SPEAKER"),
-                "text": seg.get("text", "").strip()
+                "text": seg.get("text", "").strip(),
+                "db": seg.get("db", -100.0)
             })
 
 
@@ -318,4 +357,8 @@ if __name__ == "__main__":
     from utils import apply_defaults
     apply_defaults(parser, 'transcribe.py')
     args = parser.parse_args()
+    
+    if args.db_threshold is not None and args.db_threshold > 0:
+        args.db_threshold = -args.db_threshold
+        
     process_pipeline(args.input_path, args.campaign_name, args.session_num, args.db_threshold, args.force, getattr(args, "details", None))
