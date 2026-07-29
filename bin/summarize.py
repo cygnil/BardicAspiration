@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 import threading
 
@@ -209,6 +210,20 @@ if __name__ == "__main__":
     client = get_api_client(api_url=args.api_url, api_key=args.api_key)
     
     markdown_report = run_analysis_agent(data, metadata, client, model_name=args.model)
+    
+    media_url = metadata.get("media_url")
+    if media_url:
+        time_arg = metadata.get("media_url_timestamp_arg", "t")
+        sep = "&" if "?" in media_url else "?"
+        def _repl(m):
+            open_bracket = m.group(1) or ""
+            time_str = m.group(2)
+            close_bracket = m.group(3) or ""
+            parts = [int(x) for x in time_str.split(":")]
+            seconds = sum(p * (60 ** i) for i, p in enumerate(reversed(parts)))
+            link_text = f"{open_bracket}{time_str}{close_bracket}"
+            return f"[{link_text}]({media_url}{sep}{time_arg}={seconds})"
+        markdown_report = re.sub(r"([\[\(]?)(\d{1,2}(?::\d{2}){1,2})([\]\)]?)", _repl, markdown_report)
     
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(markdown_report)
