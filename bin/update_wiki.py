@@ -82,7 +82,7 @@ You must output a raw JSON array of objects, and absolutely NO OTHER text format
 "
   }
 ]
-Valid categories are: characters, npcs, events, locations, items, other.
+Valid categories are: characters, npcs, events, locations, items, factions, other.
 """
     
     client = get_api_client(api_url, api_key)
