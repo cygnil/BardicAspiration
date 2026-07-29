@@ -135,7 +135,7 @@ Valid categories are: characters, npcs, events, locations, items, factions, othe
             
         # Classify and route
         category = update.get("category", "other").lower().strip()
-        valid_cats = ["characters", "npcs", "events", "locations", "items", "other"]
+        valid_cats = ["characters", "npcs", "events", "locations", "items", "factions", "other"]
         if category not in valid_cats:
             category = "other"
             
