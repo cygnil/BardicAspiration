@@ -146,10 +146,18 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
     output_json_path = os.path.join(target_dir, "transcript.json")
     
     session_info_path = os.path.join(target_dir, "session_info.json")
-    session_info = {
-        "session_num": str(session_num),
-        "original_audio_path": input_path
-    }
+    
+    session_info = {}
+    if os.path.exists(session_info_path):
+        try:
+            with open(session_info_path, "r", encoding="utf-8") as f:
+                session_info = json.load(f)
+        except Exception:
+            pass
+            
+    session_info["session_num"] = str(session_num)
+    session_info["original_audio_path"] = input_path
+
     if extra_info:
         try:
             extra_data = json.loads(extra_info)
