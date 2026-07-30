@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from utils import animate_spinner
 import argparse
 import difflib

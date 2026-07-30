@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from utils import load_secrets
 import argparse
 import json
