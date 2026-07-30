@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Details</title>
+    <!-- Use Marked.js for Markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="index.css">
+    <style>
+        .session-header {
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+        .meta-info {
+            display: flex;
+            gap: 1.5rem;
+            color: #666;
+            margin-top: 0.5rem;
+        }
+        .media-link {
+            display: inline-block;
+            margin-top: 1rem;
+            padding: 0.5rem 1rem;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+        .media-link:hover {
+            background-color: #0056b3;
+            color: white;
+            text-decoration: none;
+        }
+        .audio-player {
+            margin-top: 1rem;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="layout">
+        <nav id="sidebar">
+            <div id="nav-content">Loading navigation...</div>
+        </nav>
+        <main id="content">Loading...</main>
+    </div>
+
+    <script src="index.js"></script>
+</body>
+</html>

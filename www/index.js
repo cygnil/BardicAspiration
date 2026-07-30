@@ -4,18 +4,56 @@ async function loadMarkdown() {
     const contentDiv = document.getElementById('content');
 
     if (!path) {
-        contentDiv.innerHTML = `
-            <div class="error">
-                <h2>No path provided</h2>
-                <p>Please provide a path in the URL query string.</p>
-                <p>Example: <code>?path=../campaigns/netherdeep/wiki/index.json</code> (or a .md file)</p>
-            </div>
-        `;
+        try {
+            const campsResponse = await fetch('../campaigns/');
+            if (campsResponse.ok) {
+                const campsHtml = await campsResponse.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(campsHtml, 'text/html');
+                const links = Array.from(doc.querySelectorAll('li a'));
+                
+                let campsList = '<ul style="font-size: 1.2rem; line-height: 2;">';
+                let foundCampaigns = false;
+                for (const link of links) {
+                    const href = link.getAttribute('href');
+                    if (href && href.endsWith('/') && !href.startsWith('.')) {
+                        foundCampaigns = true;
+                        const campName = decodeURIComponent(href.replace(/\//g, ''));
+                        campsList += `<li><a href="index.html?path=../campaigns/${href}wiki/index.json"><strong>${campName}</strong></a></li>`;
+                    }
+                }
+                campsList += '</ul>';
+                
+                contentDiv.innerHTML = `
+                    <div class="campaigns-list">
+                        <h1>Select a Campaign</h1>
+                        ${foundCampaigns ? campsList : '<p>No campaigns found.</p>'}
+                    </div>
+                `;
+                document.title = "Campaigns - Bardic Aspiration";
+                document.getElementById('nav-content').innerHTML = 'Select a campaign to view its contents.';
+            } else {
+                throw new Error("Could not load /campaigns/");
+            }
+        } catch (e) {
+            contentDiv.innerHTML = `
+                <div class="error">
+                    <h2>Welcome to Bardic Aspiration</h2>
+                    <p>No path provided and could not automatically list campaigns.</p>
+                    <p>Example: <code>?path=../campaigns/netherdeep/wiki/index.json</code></p>
+                </div>
+            `;
+        }
         return;
     }
 
     try {
-        // Fetch the Markdown file. 
+        const isSessionPage = window.location.pathname.endsWith('session.html');
+        // Check if the user is just clicking a campaign link that points to index.json
+        // In that case, we don't want to render the raw JSON text as a markdown document
+        let isIndexJson = path.endsWith('index.json');
+        
+        // Fetch the file. 
         // Depending on your web server setup, you might need to adjust the path mapping here.
         const response = await fetch(path);
         
@@ -23,10 +61,86 @@ async function loadMarkdown() {
             throw new Error(`Failed to load file: ${response.status} ${response.statusText}`);
         }
 
-        const markdown = await response.text();
+        const rawContent = await response.text();
         
-        // Parse and render the Markdown content
-        contentDiv.innerHTML = marked.parse(markdown);
+        let renderedHtml = "";
+        
+        if (isIndexJson) {
+            // We just want a blank welcome screen while the sidebar handles everything implicitly
+            const campaignMatch = path.match(/^(.*?campaigns\/([^\/]+)\/)/);
+            let campName = "This Campaign";
+            if (campaignMatch && campaignMatch[2]) {
+                campName = decodeURIComponent(campaignMatch[2]);
+            }
+            renderedHtml = `<div style="text-align:center; margin-top:20%">
+                                <h1>Welcome to ${campName}</h1>
+                                <p style="color:#666">Select an entry from the sidebar to begin.</p>
+                            </div>`;
+        } else {
+            // Parse and render the Markdown content normally
+            renderedHtml = marked.parse(rawContent);
+        }
+        
+        if (isSessionPage && !isIndexJson) {
+            // Append graphs if reading a session summary
+            const graphsResponse = await fetch(path.replace('summary.md', 'graphs.md').replace('transcript.json', 'graphs.md').replace('transcript_annotated.json', 'graphs.md').replace('session_info.json', 'graphs.md').replace('transcript_diarized.json', 'graphs.md'));
+            if (graphsResponse.ok) {
+                const graphsMarkdown = await graphsResponse.text();
+                // strip out the title "Session X - Graphs" since we already have it
+                const strippedGraphs = graphsMarkdown.replace(/^# .*graphs\s*$/mi, '');
+                renderedHtml += "\n<hr>\n" + marked.parse(strippedGraphs);
+            }
+            
+            // Check for recap.mp3
+            const recapResponse = await fetch(path.replace('summary.md', 'recap.mp3'));
+            let audioPlayerHtml = '';
+            if (recapResponse.ok) {
+                audioPlayerHtml = `
+                    <div class="audio-player-container">
+                        <h3>Session Recap (Highlights)</h3>
+                        <audio class="audio-player" controls>
+                            <source src="${path.replace('summary.md', 'recap.mp3')}" type="audio/mpeg">
+                            Your browser does not support the audio element.
+                        </audio>
+                    </div>
+                `;
+            }
+            
+            // Check for session_info.json for metadata
+            let metaHtml = '';
+            let headerHtml = '';
+            try {
+                const infoResponse = await fetch(path.replace('summary.md', 'session_info.json'));
+                if (infoResponse.ok) {
+                    const infoJson = await infoResponse.json();
+                    
+                    const durationStr = infoJson.audio_duration ? 
+                        `<span>⏱️ ${Math.floor(infoJson.audio_duration / 3600)}h ${Math.floor((infoJson.audio_duration % 3600) / 60)}m</span>` : '';
+                        
+                    const mediaLink = infoJson.media_url ? 
+                        `<a href="${infoJson.media_url}" target="_blank" class="media-link">🎥 View Original Recording</a>` : '';
+                        
+                    if (durationStr || mediaLink) {
+                        metaHtml = `
+                            <div class="meta-info">
+                                ${durationStr}
+                                ${mediaLink}
+                            </div>
+                        `;
+                    }
+                }
+            } catch(e) {}
+            
+            contentDiv.innerHTML = `
+                <div class="session-header">
+                    ${metaHtml}
+                    ${audioPlayerHtml}
+                </div>
+                ${renderedHtml}
+            `;
+        } else {
+            contentDiv.innerHTML = renderedHtml;
+        }
         
         // Fix relative image paths to be relative to the markdown file's directory
         const images = contentDiv.querySelectorAll('img');
@@ -55,21 +169,37 @@ async function loadMarkdown() {
                         resolvedPath = url.pathname.substring(1); // strip leading slash
                     }
 
-                    // Use history.pushState to navigate without a full page reload
-                    const newUrl = new URL(window.location);
-                    newUrl.searchParams.set('path', resolvedPath);
-                    window.history.pushState({path: resolvedPath}, '', newUrl);
-                    
-                    // Trigger the load without reloading the page
-                    window.dispatchEvent(new Event('popstate'));
+                    // Are we clicking a link that leads back to a session summary or graph?
+                    const isTargetSession = resolvedPath.includes('/sessions/') && (resolvedPath.endsWith('summary.md') || resolvedPath.endsWith('graphs.md'));
+                    const targetPage = isTargetSession ? 'session.html' : 'index.html';
+
+                    // Use history.pushState to navigate without a full page reload if we are on the correct viewer type, 
+                    // else navigate normally to swap viewer modes.
+                    const currentIsSessionViewer = window.location.pathname.endsWith('session.html');
+                    if ((isTargetSession && currentIsSessionViewer) || (!isTargetSession && !currentIsSessionViewer)) {
+                        const newUrl = new URL(window.location);
+                        newUrl.searchParams.set('path', resolvedPath);
+                        window.history.pushState({path: resolvedPath}, '', newUrl);
+                        window.dispatchEvent(new Event('popstate'));
+                    } else {
+                        window.location.href = `${targetPage}?path=${resolvedPath}`;
+                    }
                 });
             }
         });
         
-        // Update the page title if a top-level heading exists
-        const h1 = contentDiv.querySelector('h1');
-        if (h1) {
-            document.title = h1.textContent;
+        if (isIndexJson) {
+            // Document title for the index
+            const campaignMatch = path.match(/^(.*?campaigns\/([^\/]+)\/)/);
+            if (campaignMatch && campaignMatch[2]) {
+                document.title = decodeURIComponent(campaignMatch[2]) + " - Bardic Aspiration";
+            }
+        } else {
+            // Update the page title if a top-level heading exists
+            const h1 = contentDiv.querySelector('h1');
+            if (h1) {
+                document.title = h1.textContent;
+            }
         }
 
         // Only load the sidebar if it hasn't been loaded or if we changed campaigns completely
@@ -212,13 +342,7 @@ async function loadSidebar(currentPath, campaignWikiDir) {
                             // ignore, fallback to default title
                         }
                         
-                        sessionsHtml += `<li><strong class="collapsible">${title}</strong><ul class="nested">`;
-                        sessionsHtml += `<li><a href="?path=${summaryPath}">Summary</a></li>`;
-                        
-                        const graphsPath = sessionsDirUrl + sessionId + '/graphs.md';
-                        sessionsHtml += `<li><a href="?path=${graphsPath}">Graphs</a></li>`;
-                        
-                        sessionsHtml += '</ul></li>';
+                        sessionsHtml += `<li><a href="session.html?path=${summaryPath}">Session ${parseInt(sessionId, 10)}${title !== `Session ${parseInt(sessionId, 10)}` ? `: ${title.split(': ')[1]}` : ''}</a></li>`;
                     }
                 }
                 
@@ -242,7 +366,7 @@ async function loadSidebar(currentPath, campaignWikiDir) {
             grouped[group].sort((a, b) => a.name.localeCompare(b.name));
             
             for (const item of grouped[group]) {
-                html += `<li><a href="?path=${item.path}">${item.name}</a></li>`;
+                html += `<li><a href="index.html?path=${item.path}">${item.name}</a></li>`;
             }
             html += '</ul></li>';
         }
@@ -264,15 +388,21 @@ async function loadSidebar(currentPath, campaignWikiDir) {
             });
         });
 
-        // Intercept links in the sidebar to prevent full reload
+        // Intercept links in the sidebar to prevent full reload WHEN ON THE SAME VIEWER
         navContent.querySelectorAll('a').forEach(link => {
             link.addEventListener('click', (e) => {
-                e.preventDefault();
                 const url = new URL(link.href);
-                const resolvedPath = url.searchParams.get('path');
+                const isTargetSession = url.pathname.endsWith('session.html');
+                const currentIsSessionViewer = window.location.pathname.endsWith('session.html');
                 
-                window.history.pushState({path: resolvedPath}, '', url);
-                window.dispatchEvent(new Event('popstate'));
+                // If the link points to the same HTML file we are currently on, we can safely intercept!
+                if ((isTargetSession && currentIsSessionViewer) || (!isTargetSession && !currentIsSessionViewer)) {
+                    e.preventDefault();
+                    const resolvedPath = url.searchParams.get('path');
+                    window.history.pushState({path: resolvedPath}, '', url);
+                    window.dispatchEvent(new Event('popstate'));
+                }
+                // Otherwise, let the browser load the link normally to switch between session.html <-> index.html
             });
         });
 
