@@ -35,23 +35,25 @@ def run_analysis_agent(session_data, session_metadata, client, model_name="qwen2
         full_transcript_lines = []
         for seg in transcript:
             # Check for metadata metrics
+            meta = seg.get("meta_metrics", {})
             metadata = []
-            if "emotions" in seg and seg["emotions"]:
+            if "emotions" in meta and meta["emotions"]:
                 # Sort emotions by weight descending and get top 2
-                sorted_emotions = sorted(seg["emotions"].items(), key=lambda x: x[1], reverse=True)
+                sorted_emotions = sorted(meta["emotions"].items(), key=lambda x: x[1], reverse=True)
                 top_emotions = ", ".join([e[0] for e in sorted_emotions[:2]])
                 metadata.append(f"Emotions: {top_emotions}")
-            if "drama" in seg:
-                metadata.append(f"Drama: {seg['drama']}")
-            if "humor" in seg:
-                metadata.append(f"Humor: {seg['humor']}")
-            if "in_character" in seg:
-                metadata.append(f"In-Character: {seg['in_character']}")
-            if "surprisal" in seg:
-                metadata.append(f"Surprisal: {seg['surprisal']}")
+            if "drama" in meta:
+                metadata.append(f"Drama: {meta['drama']}")
+            if "humor" in meta:
+                metadata.append(f"Humor: {meta['humor']}")
+            if "in_character" in meta:
+                metadata.append(f"In-Character: {meta['in_character']}")
+            if "surprisal" in meta:
+                metadata.append(f"Surprisal: {meta['surprisal']}")
                 
             meta_str = f" ({' | '.join(metadata)})" if metadata else ""
-            full_transcript_lines.append(f"[{seg['start']}s] {seg['speaker']}{meta_str}: {seg['text']}")
+        start_time = seg.get("transcription_metrics", {}).get("start", 0)
+        full_transcript_lines.append(f"[{start_time}s] {seg.get('speaker', 'UNKNOWN_SPEAKER')}{meta_str}: {seg.get('text', '')}")
         transcript_text = "\n".join(full_transcript_lines)
         
         with open("prompts/chronicler.txt", "r", encoding="utf-8") as f:
@@ -83,32 +85,35 @@ def run_analysis_agent(session_data, session_metadata, client, model_name="qwen2
     chunk_duration = 900 
     chunks = []
     current_chunk = []
-    chunk_start_time = transcript[0]["start"] if transcript else 0
+    chunk_start_time = transcript[0].get("transcription_metrics", {}).get("start", 0) if transcript else 0
 
     for seg in transcript:
         # Build metadata string
+        meta = seg.get("meta_metrics", {})
         metadata = []
-        if "emotions" in seg and seg["emotions"]:
+        if "emotions" in meta and meta["emotions"]:
             # Sort emotions by weight descending and get top 2
-            sorted_emotions = sorted(seg["emotions"].items(), key=lambda x: x[1], reverse=True)
+            sorted_emotions = sorted(meta["emotions"].items(), key=lambda x: x[1], reverse=True)
             top_emotions = ", ".join([e[0] for e in sorted_emotions[:2]])
             metadata.append(f"Emotions: {top_emotions}")
-        if "drama" in seg:
-            metadata.append(f"Drama: {seg['drama']}")
-        if "humor" in seg:
-            metadata.append(f"Humor: {seg['humor']}")
-        if "in_character" in seg:
-            metadata.append(f"In-Character: {seg['in_character']}")
-        if "surprisal" in seg:
-            metadata.append(f"Surprisal: {seg['surprisal']}")
+        if "drama" in meta:
+            metadata.append(f"Drama: {meta['drama']}")
+        if "humor" in meta:
+            metadata.append(f"Humor: {meta['humor']}")
+        if "in_character" in meta:
+            metadata.append(f"In-Character: {meta['in_character']}")
+        if "surprisal" in meta:
+            metadata.append(f"Surprisal: {meta['surprisal']}")
             
         meta_str = f" ({' | '.join(metadata)})" if metadata else ""
-        current_chunk.append(f"[{seg['start']}s] {seg['speaker']}{meta_str}: {seg['text']}")
+        start_time = seg.get("transcription_metrics", {}).get("start", 0)
+        end_time = seg.get("transcription_metrics", {}).get("end", 0)
+        current_chunk.append(f"[{start_time}s] {seg.get('speaker', 'UNKNOWN_SPEAKER')}{meta_str}: {seg.get('text', '')}")
         
-        if seg['end'] - chunk_start_time >= chunk_duration:
+        if end_time - chunk_start_time >= chunk_duration:
             chunks.append("\n".join(current_chunk))
             current_chunk = []
-            chunk_start_time = seg['end']
+            chunk_start_time = end_time
     if current_chunk:
         chunks.append("\n".join(current_chunk))
 

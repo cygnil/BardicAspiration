@@ -38,14 +38,16 @@ def append_surprisal_metric(segments, device):
         for seg in segments:
             text = seg.get("text", "").strip()
             if not text:
-                seg["surprisal"] = 0.0
+                seg.setdefault("meta_metrics", {})
+                seg["meta_metrics"]["surprisal"] = 0.0
                 continue
                 
             inputs = tokenizer(text, return_tensors="pt")
             
             # If the sentence is incredibly short or somehow tokenizes to nothing
             if inputs["input_ids"].shape[1] < 2:
-                seg["surprisal"] = 0.0
+                seg.setdefault("meta_metrics", {})
+                seg["meta_metrics"]["surprisal"] = 0.0
                 continue
                 
             if device == "cuda":
@@ -56,7 +58,8 @@ def append_surprisal_metric(segments, device):
             loss = outputs.loss.item()
             
             # Record it (higher loss = higher surprisal)
-            seg["surprisal"] = round(loss, 2)
+            seg.setdefault("meta_metrics", {})
+            seg["meta_metrics"]["surprisal"] = round(loss, 2)
             
     print(f"✅ Surprisal analysis complete. ({time.time() - start_time:.2f}s)")
     return segments
@@ -81,24 +84,27 @@ def append_emotional_valence(segments, device, emotion_threshold=0.35):
                 
         # We only assign top emotions if they cross the confidence threshold
         if valid_emotions:
-            seg["emotions"] = valid_emotions
+            seg["meta_metrics"]["emotions"] = valid_emotions
 
     print(f"✅ Emotion analysis complete. ({time.time() - start_time:.2f}s)")
     return segments
 
 def calculate_wps(segments):
     for seg in segments:
+        t_metrics = seg.get("transcription_metrics", {})
         text = seg.get("text", "")
-        start = seg.get("start", 0.0)
-        end = seg.get("end", 0.0)
+        start = t_metrics.get("start", 0.0)
+        end = t_metrics.get("end", 0.0)
         duration = end - start
         
         # Avoid division by zero
         if duration > 0:
             word_count = len(text.split())
-            seg["wps"] = round(word_count / duration, 2)
+            seg.setdefault("transcription_metrics", {})
+            seg["transcription_metrics"]["wps"] = round(word_count / duration, 2)
         else:
-            seg["wps"] = 0.0
+            seg.setdefault("transcription_metrics", {})
+            seg["transcription_metrics"]["wps"] = 0.0
             
     return segments
 
@@ -146,7 +152,7 @@ def append_zero_shot_metrics(segments, device, threshold):
         scores_ic = dict(zip(res_ic['labels'], res_ic['scores']))
         ic_score = scores_ic.get("in-character acting and fantasy roleplay", 0)
         ooc_score = scores_ic.get("out-of-character table talk and game rules", 0)
-        seg["in_character"] = round(ic_score - ooc_score, 2)
+        seg["meta_metrics"]["in_character"] = round(ic_score - ooc_score, 2)
         
         # Process Drama scores
         res_drama = results_drama[i]
@@ -155,7 +161,7 @@ def append_zero_shot_metrics(segments, device, threshold):
         calm_score = scores_drama.get("calm and relaxed", 0)
         drama_diff = round(drama_score - calm_score, 2)
         if drama_diff >= threshold:
-            seg["drama"] = drama_diff
+            seg["meta_metrics"]["drama"] = drama_diff
         
         # Process Humor scores
         res_humor = results_humor[i]
@@ -164,7 +170,7 @@ def append_zero_shot_metrics(segments, device, threshold):
         serious_score = scores_humor.get("a normal conversation, mundane, or entirely serious", 0)
         humor_diff = round(humor_score - serious_score, 2)
         if humor_diff >= threshold:
-            seg["humor"] = humor_diff
+            seg["meta_metrics"]["humor"] = humor_diff
 
     print(f"✅ Context analysis complete. ({time.time() - start_time:.2f}s)")
     return segments

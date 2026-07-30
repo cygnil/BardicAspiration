@@ -60,24 +60,26 @@ def generate_graph(campaign_name, session_num):
 
     for seg in transcript:
         # Use segment start time (in seconds) or index if time not available
-        t = seg.get("start", len(times))
+        t = seg.get("transcription_metrics", {}).get("start", len(times))
         times.append(t)
         
-        if "humor" in seg and seg["humor"] > 0:
-            humor_data.append((t, seg["humor"]))
+        meta = seg.get("meta_metrics", {})
+        
+        if "humor" in meta and meta["humor"] > 0:
+            humor_data.append((t, meta["humor"]))
             
-        if "drama" in seg and seg["drama"] > 0:
-            drama_data.append((t, seg["drama"]))
+        if "drama" in meta and meta["drama"] > 0:
+            drama_data.append((t, meta["drama"]))
         
         # Determine raw cumulative emotion sum for the segment, clipped at 1.0
-        emo_dict = seg.get("emotions", {})
+        emo_dict = meta.get("emotions", {})
         if emo_dict:
             emo_weight = sum(emo_dict.values())
             emo_weight = min(emo_weight, 1.0)
             if emo_weight > 0:
                 emotion_data.append((t, emo_weight))
         
-        ic = seg.get("in_character", 0.0)
+        ic = meta.get("in_character", 0.0)
         if ic > 0:
             pos_ic_data.append((t, ic))
         elif ic < 0:
@@ -113,7 +115,7 @@ def generate_graph(campaign_name, session_num):
         if speaker == "UNKNOWN" or "UNKNOWN_SPEAKER" in speaker or "Unknown" in speaker:
             continue
             
-        duration = seg.get("end", 0) - seg.get("start", 0)
+        duration = seg.get("transcription_metrics", {}).get("end", 0) - seg.get("transcription_metrics", {}).get("start", 0)
         if duration > 0:
             speaker_durations[speaker] = speaker_durations.get(speaker, 0) + duration
             total_talk_time += duration

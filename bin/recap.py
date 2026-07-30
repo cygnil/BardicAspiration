@@ -23,17 +23,19 @@ def rank_audio_segments(client, transcript_data, registry, model_name, summary_t
     condensed_segments = []
     for idx, s in enumerate(transcript_data["transcript"]):
         # Discard clips shorter than 1.5 seconds (likely random laughs/crosstalk)
-        duration = s["end"] - s["start"]
+        start_time = s.get("transcription_metrics", {}).get("start", 0)
+        end_time = s.get("transcription_metrics", {}).get("end", 0)
+        duration = end_time - start_time
         if duration >= 1.5:
              condensed_segments.append({
                  "id": idx, 
                  "duration": round(duration, 1), 
-                 "speaker": s["speaker"], 
-                 "text": s["text"],
+                 "speaker": s.get("speaker", "UNKNOWN_SPEAKER"), 
+                 "text": s.get("text", ""),
                  # Include annotations if present
-                 "drama": s.get("drama"),
-                 "surprisal": s.get("surprisal"),
-                 "humor": s.get("humor")
+                 "drama": s.get("meta_metrics", {}).get("drama"),
+                 "surprisal": s.get("meta_metrics", {}).get("surprisal"),
+                 "humor": s.get("meta_metrics", {}).get("humor")
              })
              
     total_len = len(condensed_segments)
@@ -218,12 +220,14 @@ if __name__ == "__main__":
             continue
             
         segment_meta = session_package["transcript"][idx]
-        start_ms = int(segment_meta["start"] * 1000)
-        end_ms = int(segment_meta["end"] * 1000)
+        start_time = segment_meta.get("transcription_metrics", {}).get("start", 0)
+        end_time = segment_meta.get("transcription_metrics", {}).get("end", 0)
+        start_ms = int(start_time * 1000)
+        end_ms = int(end_time * 1000)
         clip_duration_ms = end_ms - start_ms
         
         clip = full_audio[start_ms:end_ms]
-        print(f"   ↳ Cut Added [{segment_meta['start']}s -> {segment_meta['end']}s] {segment_meta['speaker']}: '{segment_meta['text'][:50]}...' ({clip_duration_ms}ms)")
+        print(f"   ↳ Cut Added [{start_time}s -> {end_time}s] {segment_meta.get('speaker', 'UNKNOWN_SPEAKER')}: '{segment_meta.get('text', '')[:50]}...' ({clip_duration_ms}ms)")
         
         if len(recap_mix) > 0:
             current_crossfade = min(CROSSFADE_DURATION, int(clip_duration_ms / 3))

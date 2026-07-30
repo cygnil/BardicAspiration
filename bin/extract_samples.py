@@ -34,12 +34,12 @@ def extract_samples(campaign_name, session_num, min_sample_length=3000, min_conf
         spk = seg.get("speaker", "UNKNOWN_SPEAKER")
         if spk == "UNKNOWN_SPEAKER": continue
         
-        confidence = seg.get("confidence", 1.0)
+        confidence = seg.get("transcription_metrics", {}).get("confidence", 1.0)
         if confidence < min_confidence:
             continue
             
-        start_ms = int(seg.get("start", 0.0) * 1000)
-        end_ms = int(seg.get("end", 0.0) * 1000)
+        start_ms = int(seg.get("transcription_metrics", {}).get("start", 0.0) * 1000)
+        end_ms = int(seg.get("transcription_metrics", {}).get("end", 0.0) * 1000)
         
         if (end_ms - start_ms) > min_sample_length:
             if spk not in speaker_segments:
@@ -59,7 +59,7 @@ def extract_samples(campaign_name, session_num, min_sample_length=3000, min_conf
         def score_segment(s):
             text = s.get("text", "").strip()
             word_count = len(text.split())
-            clarity = s.get("clarity", 0.0)
+            clarity = s.get("transcription_metrics", {}).get("clarity", 0.0)
             
             # If there's barely any words, heavily penalize. Otherwise, scale clarity by word count loosely
             if word_count < 3:
@@ -68,9 +68,9 @@ def extract_samples(campaign_name, session_num, min_sample_length=3000, min_conf
 
         best_seg = max(segs, key=score_segment)
         
-        start_ms = int(best_seg.get("start", 0.0) * 1000)
-        end_ms = int(best_seg.get("end", 0.0) * 1000)
-        clarity = best_seg.get("clarity", 0.0)
+        start_ms = int(best_seg.get("transcription_metrics", {}).get("start", 0.0) * 1000)
+        end_ms = int(best_seg.get("transcription_metrics", {}).get("end", 0.0) * 1000)
+        clarity = best_seg.get("transcription_metrics", {}).get("clarity", 0.0)
 
         out_clip_path = os.path.join(samples_dir, f"{spk}.mp3")
         score = score_segment(best_seg)

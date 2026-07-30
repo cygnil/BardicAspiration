@@ -60,7 +60,7 @@ def run_diarization(campaign_name, session_num, force_overwrite=False, api_url=N
         sample_segments = processed_transcript
 
     for seg in sample_segments:
-        snippet_lines.append(f"{seg['speaker']}: {seg['text']}")
+        snippet_lines.append(f"{seg.get('speaker', 'UNKNOWN_SPEAKER')}: {seg.get('text', '')}")
     transcript_snippet = "\n".join(snippet_lines)[:10000]
 
 

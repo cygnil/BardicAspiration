@@ -135,6 +135,9 @@ Valid categories are: characters, npcs, events, locations, items, factions, othe
         if not file_name:
             continue
             
+        # Ensure file_name doesn't contain nested folder paths created by the LLM (like locations/xhorhas.md)
+        file_name = os.path.basename(file_name)
+            
         # Classify and route
         category = update.get("category", "other").lower().strip()
         valid_cats = ["characters", "npcs", "events", "locations", "items", "factions", "other"]

@@ -258,16 +258,18 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
                         avg_confidence = sum(confidences) / len(confidences)
                         
                 raw_segments.append({
-                    "start": seg.get("start", 0.0),
-                    "end": seg.get("end", 0.0),
                     "speaker": speaker_identity,
                     "text": seg.get("text", ""),
-                    "confidence": round(avg_confidence, 3),
-                    "db": seg.get("db", -100.0),
-                    "clarity": seg.get("clarity", 0.0)
+                    "transcription_metrics": {
+                        "start": seg.get("start", 0.0),
+                        "end": seg.get("end", 0.0),
+                        "confidence": round(avg_confidence, 3),
+                        "db": seg.get("db", -100.0),
+                        "clarity": seg.get("clarity", 0.0)
+                    }
                 })
         print(f"⚠️ Multi-track transcription complete. ({time.time() - multi_track_start_time:.2f}s)")
-        raw_segments.sort(key=lambda x: x["start"])
+        raw_segments.sort(key=lambda x: x.get("transcription_metrics", {}).get("start", 0.0))
         
         processed_transcript = []
         if dedup:
@@ -276,11 +278,15 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
                 found_duplicate = False
                 for i in range(max(0, len(processed_transcript) - 10), len(processed_transcript)):
                     kept_seg = processed_transcript[i]
-                    if abs(seg['start'] - kept_seg['start']) < 2.0:
-                        similarity = difflib.SequenceMatcher(None, seg['text'], kept_seg['text']).ratio()
+                    seg_start = seg.get('transcription_metrics', {}).get('start', 0.0)
+                    kept_start = kept_seg.get('transcription_metrics', {}).get('start', 0.0)
+                    if abs(seg_start - kept_start) < 2.0:
+                        similarity = difflib.SequenceMatcher(None, seg.get('text', ''), kept_seg.get('text', '')).ratio()
                         if similarity > 0.6:
                             found_duplicate = True
-                            if seg.get('db', -100.0) > kept_seg.get('db', -100.0):
+                            seg_db = seg.get('transcription_metrics', {}).get('db', -100.0)
+                            kept_db = kept_seg.get('transcription_metrics', {}).get('db', -100.0)
+                            if seg_db > kept_db:
                                 processed_transcript[i] = seg
                             break
                 if not found_duplicate:
@@ -350,13 +356,15 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
                     avg_confidence = sum(confidences) / len(confidences)
 
             processed_transcript.append({
-                "start": round(seg.get("start", 0.0), 2),
-                "end": round(seg.get("end", 0.0), 2),
                 "speaker": seg.get("speaker", "UNKNOWN_SPEAKER"),
                 "text": seg.get("text", "").strip(),
-                "db": seg.get("db", -100.0),
-                "clarity": seg.get("clarity", 0.0),
-                "confidence": round(avg_confidence, 3)
+                "transcription_metrics": {
+                    "start": round(seg.get("start", 0.0), 2),
+                    "end": round(seg.get("end", 0.0), 2),
+                    "db": seg.get("db", -100.0),
+                    "clarity": seg.get("clarity", 0.0),
+                    "confidence": round(avg_confidence, 3)
+                }
             })
 
     session_manifest={
