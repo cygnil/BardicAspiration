@@ -76,7 +76,7 @@ def get_audio_duration(audio_array):
     # duration in seconds = number of samples / sample rate
     return len(audio_array) / 16000.0
 
-def transcribe_and_align(audio_path, device, compute_type, model, alignment_model, metadata, db_threshold=-45.0):
+def transcribe_and_align(audio_path, device, compute_type, model, alignment_model, metadata, db_threshold=-45.0, initial_prompt=None):
     print(f"⚡ Audio engine reading track target: {audio_path}")
     audio = whisperx.load_audio(audio_path)
     audio_duration_sec = get_audio_duration(audio)
@@ -221,7 +221,8 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
     spinner_thread = threading.Thread(target=animate_spinner, args=(stop_model, f"Loading WhisperX (large-v3) into {device.upper()} VRAM..."))
     spinner_thread.start()
 
-    model = whisperx.load_model("large-v3", device, compute_type=compute_type, language="en")
+    asr_options = {"initial_prompt": HOTWORDS} if HOTWORDS else None
+    model = whisperx.load_model("large-v3", device, compute_type=compute_type, language="en", asr_options=asr_options)
     alignment_model, metadata = whisperx.load_align_model(language_code="en", device=device)
 
     stop_model.set()
@@ -233,7 +234,7 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
         multi_track_start_time = time.time()
         for file_path in tqdm(audio_files, desc="Overall Transcription Progress", unit="track"):
             speaker_identity = os.path.splitext(os.path.basename(file_path))[0].upper()
-            segments, audio_dur = transcribe_and_align(file_path, device, compute_type, model, alignment_model, metadata, db_threshold)
+            segments, audio_dur = transcribe_and_align(file_path, device, compute_type, model, alignment_model, metadata, db_threshold, initial_prompt=HOTWORDS)
             
             # Record maximum duration across tracks
             session_info["length_seconds"] = max(session_info.get("length_seconds", 0), audio_dur)
@@ -291,10 +292,10 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
             
         spinner_thread = threading.Thread(target=animate_spinner, args=(stop_transcribe, "WhisperX transcribing and aligning master audio file..."))
         spinner_thread.start()
-            
-        segments, audio_dur = transcribe_and_align(input_path, device, compute_type, model, alignment_model, metadata, db_threshold)
+        
+        segments, audio_dur = transcribe_and_align(input_path, device, compute_type, model, alignment_model, metadata, db_threshold, initial_prompt=HOTWORDS)
         session_info["length_seconds"] = audio_dur
-            
+        
         stop_transcribe.set()
         spinner_thread.join()
         print(f"⚠️ Core transcription complete. ({time.time() - transcribe_start_time:.2f}s)                                     ")
