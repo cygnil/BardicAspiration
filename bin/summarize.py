@@ -52,8 +52,8 @@ def run_analysis_agent(session_data, session_metadata, client, model_name="qwen2
                 metadata.append(f"Surprisal: {meta['surprisal']}")
                 
             meta_str = f" ({' | '.join(metadata)})" if metadata else ""
-        start_time = seg.get("transcription_metrics", {}).get("start", 0)
-        full_transcript_lines.append(f"[{start_time}s] {seg.get('speaker', 'UNKNOWN_SPEAKER')}{meta_str}: {seg.get('text', '')}")
+            start_time = seg.get("transcription_metrics", {}).get("start", 0)
+            full_transcript_lines.append(f"[{start_time}s] {seg.get('speaker', 'UNKNOWN_SPEAKER')}{meta_str}: {seg.get('text', '')}")
         transcript_text = "\n".join(full_transcript_lines)
         
         with open("prompts/chronicler.txt", "r", encoding="utf-8") as f:

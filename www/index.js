@@ -78,8 +78,8 @@ async function loadMarkdown() {
                                 <p style="color:#666">Select an entry from the sidebar to begin.</p>
                             </div>`;
         } else {
-            // Parse and render the Markdown content normally
-            renderedHtml = marked.parse(rawContent);
+            // Parse and render the Markdown content normally using GFM for checkboxes
+            renderedHtml = marked.parse(rawContent, { gfm: true, breaks: true });
         }
         
         if (isSessionPage && !isIndexJson) {
@@ -89,7 +89,7 @@ async function loadMarkdown() {
                 const graphsMarkdown = await graphsResponse.text();
                 // strip out the title "Session X - Graphs" since we already have it
                 const strippedGraphs = graphsMarkdown.replace(/^# .*graphs\s*$/mi, '');
-                renderedHtml += "\n<hr>\n" + marked.parse(strippedGraphs);
+                renderedHtml += "\n<hr>\n" + marked.parse(strippedGraphs, { gfm: true, breaks: true });
             }
             
             // Check for recap.mp3

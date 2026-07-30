@@ -20,7 +20,7 @@ Do not summarize as an AI assistant. You must generate exactly 6 Markdown header
 (Summarize a few scenes where something important happened, or high action or improbable success or failure happened)
 
 ## 5. Open Items & Quest Hooks
-(Unresolved tasks or loose ends in Markdown checkbox format with the checkbox as the first item on the line, no dashes at the start of the line)
+(Unresolved tasks or loose ends in standard Markdown checkbox list format, starting with a hyphen e.g. `- [ ] task name`)
 
 ## 6. Next Session Narrative Recap
 (A high-fantasy style intro paragraph to read aloud next game)
