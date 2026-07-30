@@ -5,12 +5,13 @@ async function loadMarkdown() {
 
     if (!path) {
         try {
-            const campsResponse = await fetch('../campaigns/');
+            const campsResponse = await fetch('campaigns/');
             if (campsResponse.ok) {
                 const campsHtml = await campsResponse.text();
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(campsHtml, 'text/html');
-                const links = Array.from(doc.querySelectorAll('li a'));
+                // Broaden the selector since remote servers like Apache/Nginx often don't put directory links inside <li> tags
+                const links = Array.from(doc.querySelectorAll('a'));
                 
                 let campsList = '<ul style="font-size: 1.2rem; line-height: 2;">';
                 let foundCampaigns = false;
@@ -19,7 +20,7 @@ async function loadMarkdown() {
                     if (href && href.endsWith('/') && !href.startsWith('.')) {
                         foundCampaigns = true;
                         const campName = decodeURIComponent(href.replace(/\//g, ''));
-                        campsList += `<li><a href="index.html?path=../campaigns/${href}wiki/index.json"><strong>${campName}</strong></a></li>`;
+                        campsList += `<li><a href="index.html?path=campaigns/${href}wiki/index.json"><strong>${campName}</strong></a></li>`;
                     }
                 }
                 campsList += '</ul>';
@@ -40,7 +41,7 @@ async function loadMarkdown() {
                 <div class="error">
                     <h2>Welcome to Bardic Aspiration</h2>
                     <p>No path provided and could not automatically list campaigns.</p>
-                    <p>Example: <code>?path=../campaigns/netherdeep/wiki/index.json</code></p>
+                    <p>Example: <code>?path=campaigns/netherdeep/wiki/index.json</code></p>
                 </div>
             `;
         }
@@ -165,8 +166,24 @@ async function loadMarkdown() {
                     let resolvedPath = href;
                     
                     if (!href.startsWith('/')) {
-                        const url = new URL(href, window.location.origin + '/' + currentDir + '/');
-                        resolvedPath = url.pathname.substring(1); // strip leading slash
+                        const parts = currentDir.split('/').filter(p => p !== '');
+                        const hrefParts = href.split('/');
+                        for (const part of hrefParts) {
+                            if (part === '' || part === '.') continue;
+                            if (part === '..') {
+                                if (parts.length > 0 && parts[parts.length - 1] !== '..') {
+                                    parts.pop();
+                                } else {
+                                    parts.push('..');
+                                }
+                            } else {
+                                parts.push(part);
+                            }
+                        }
+                        resolvedPath = parts.join('/');
+                        if (currentDir.startsWith('/') && !resolvedPath.startsWith('/')) {
+                            resolvedPath = '/' + resolvedPath;
+                        }
                     }
 
                     // Are we clicking a link that leads back to a session summary or graph?
@@ -316,7 +333,7 @@ async function loadSidebar(currentPath, campaignWikiDir) {
                 // Parse the directory listing HTML to find session directories
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(sessionsHtmlText, 'text/html');
-                const links = Array.from(doc.querySelectorAll('li a'));
+                const links = Array.from(doc.querySelectorAll('a'));
                 
                 let foundSessions = false;
                 for (const link of links) {
