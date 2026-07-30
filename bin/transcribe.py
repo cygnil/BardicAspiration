@@ -120,10 +120,18 @@ def transcribe_and_align(audio_path, device, compute_type, model, alignment_mode
             # find peak db in this segment
             # use 95th percentile to avoid outlier clicks but represent volume well
             peak_db = np.percentile(db[start_sample:end_sample], 95)
+            
+            # calculate clarity (signal-to-noise proxy based on db variance and min floor)
+            # A clean voice goes from silence (low db) to loud voice (high db) quickly, high variance
+            # A noisy background always has high db, lower variance
+            median_db = np.median(db[start_sample:end_sample])
+            clarity = peak_db - median_db
         else:
             peak_db = -100.0 # silence fallback
+            clarity = 0.0
             
         seg["db"] = round(float(peak_db), 2)
+        seg["clarity"] = round(float(clarity), 2)
         
     return aligned_result["segments"], audio_duration_sec
 
@@ -242,12 +250,21 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
             session_info["length_seconds"] = max(session_info.get("length_seconds", 0), audio_dur)
             
             for seg in segments:
+                words = seg.get("words", [])
+                avg_confidence = 0.0
+                if words:
+                    confidences = [w.get("score", 0.0) for w in words if "score" in w]
+                    if confidences:
+                        avg_confidence = sum(confidences) / len(confidences)
+                        
                 raw_segments.append({
                     "start": seg.get("start", 0.0),
                     "end": seg.get("end", 0.0),
                     "speaker": speaker_identity,
                     "text": seg.get("text", ""),
-                    "db": seg.get("db", -100.0)
+                    "confidence": round(avg_confidence, 3),
+                    "db": seg.get("db", -100.0),
+                    "clarity": seg.get("clarity", 0.0)
                 })
         print(f"⚠️ Multi-track transcription complete. ({time.time() - multi_track_start_time:.2f}s)")
         raw_segments.sort(key=lambda x: x["start"])
@@ -325,34 +342,22 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
             
         processed_transcript = []
         for seg in final_result["segments"]:
+            words = seg.get("words", [])
+            avg_confidence = 0.0
+            if words:
+                confidences = [w.get("score", 0.0) for w in words if "score" in w]
+                if confidences:
+                    avg_confidence = sum(confidences) / len(confidences)
+
             processed_transcript.append({
                 "start": round(seg.get("start", 0.0), 2),
                 "end": round(seg.get("end", 0.0), 2),
                 "speaker": seg.get("speaker", "UNKNOWN_SPEAKER"),
                 "text": seg.get("text", "").strip(),
-                "db": seg.get("db", -100.0)
+                "db": seg.get("db", -100.0),
+                "clarity": seg.get("clarity", 0.0),
+                "confidence": round(avg_confidence, 3)
             })
-
-
-        found_speakers=set()
-        for seg in processed_transcript:
-            spk=seg.get("speaker", "UNKNOWN_SPEAKER")
-            if spk in found_speakers or spk == "UNKNOWN_SPEAKER":
-                continue
-
-            start_ms=int(seg.get("start", 0.0) * 1000)
-            end_ms=int(seg.get("end", 0.0) * 1000)
-
-            # We want at least a ~2.0 second clip to make it identifiable
-            if (end_ms - start_ms) > SAMPLE_LENGTH:
-                samples_dir = os.path.join(target_dir, "samples")
-                os.makedirs(samples_dir, exist_ok=True)
-                out_clip_path = os.path.join(samples_dir, f"{spk}.mp3")
-                print(f"   => Exporting {spk} sample ({start_ms}ms to {end_ms}ms)")
-                clip = master_audio[start_ms:end_ms]
-                clip.export(out_clip_path, format="mp3", bitrate="128k")
-                found_speakers.add(spk)
-
 
     session_manifest={
         "session_file": os.path.abspath(input_path),
