@@ -119,10 +119,6 @@ if __name__ == "__main__":
     if 8 not in args.skip:
         relink_cmd = [ENV_PYTHON, "bin/relink_wiki.py", campaign]
         run_command(relink_cmd, "Wiki Markdown Retroactive Entity Linker")
-        
-        # Now run the new summary linker for this specific session
-        summary_link_cmd = [ENV_PYTHON, "bin/link_summary.py", campaign, str(session_num)]
-        run_command(summary_link_cmd, "Session Summary Entity Linker")
 
     # --- STEP 9: AUDIO RECAP COMPILATION ---
     if 9 not in args.skip:
