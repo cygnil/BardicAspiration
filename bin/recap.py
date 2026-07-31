@@ -6,7 +6,7 @@ import os
 import sys
 from pydub import AudioSegment
 
-CROSSFADE_DURATION = 150
+CROSSFADE_DURATION = 50
 
 from utils import get_api_client, get_wsl_host_ip
 
