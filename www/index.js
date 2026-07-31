@@ -143,7 +143,7 @@ async function loadMarkdown() {
             contentDiv.innerHTML = renderedHtml;
         }
         
-        // Fix relative image paths to be relative to the markdown file's directory
+        // Fix relative image paths and add lightbox functionality
         const images = contentDiv.querySelectorAll('img');
         const currentDir = path.substring(0, path.lastIndexOf('/'));
         images.forEach(img => {
@@ -151,6 +151,28 @@ async function loadMarkdown() {
             if (src && !src.startsWith('http') && !src.startsWith('/')) {
                 img.src = currentDir + '/' + src;
             }
+            
+            // Render images as thumbnails that can be clicked to enlarge
+            img.classList.add('markdown-thumbnail');
+            
+            // Click to preview
+            img.addEventListener('click', () => {
+                const overlay = document.createElement('div');
+                overlay.classList.add('lightbox-overlay');
+                
+                const largeImg = document.createElement('img');
+                largeImg.src = img.src;
+                largeImg.classList.add('lightbox-image');
+                
+                overlay.appendChild(largeImg);
+                
+                // Click anywhere on overlay to close
+                overlay.addEventListener('click', () => {
+                    document.body.removeChild(overlay);
+                });
+                
+                document.body.appendChild(overlay);
+            });
         });
 
         // Intercept links to load Markdown files within the viewer

@@ -92,7 +92,6 @@ code {
     font-size: 0.9em;
 }
 img {
-    max-width: 100%;
     height: auto;
     border-radius: 4px;
 }
@@ -115,4 +114,36 @@ a:hover {
     padding: 1rem;
     border-radius: 4px;
     border-left: 4px solid #d32f2f;
+}
+.markdown-thumbnail {
+    cursor: pointer;
+    max-width: 300px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease;
+}
+
+.markdown-thumbnail:hover {
+    transform: scale(1.02);
+}
+
+.lightbox-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    cursor: pointer;
+}
+
+.lightbox-image {
+    max-width: 90vw;
+    max-height: 90vh;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
