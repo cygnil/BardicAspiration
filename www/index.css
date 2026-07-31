@@ -8,10 +8,12 @@ body {
 }
 #layout {
     display: flex;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
 }
 #sidebar {
     width: 250px;
+    flex-shrink: 0;
     background: #e9ecef;
     border-right: 1px solid #ddd;
     padding: 2rem 1rem;
@@ -63,9 +65,14 @@ body {
 }
 #content {
     flex-grow: 1;
+    overflow-y: auto;
+    background: #e9ecef; /* match sidebar edge implicitly or separate visually */
+    box-sizing: border-box;
+}
+
+.content-wrapper {
     background: #fff;
     padding: 2rem 3rem;
-    box-sizing: border-box;
     max-width: 900px;
     margin: 2rem auto;
     border-radius: 8px;

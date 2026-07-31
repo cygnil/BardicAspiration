@@ -1,7 +1,7 @@
 async function loadMarkdown() {
     const urlParams = new URLSearchParams(window.location.search);
     const path = urlParams.get('path');
-    const contentDiv = document.getElementById('content');
+    const contentDiv = document.querySelector('.content-wrapper');
 
     if (!path) {
         try {
