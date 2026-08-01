@@ -28,7 +28,26 @@ if (!(Test-Path -Path ./dnd_env)) {
 echo "⬇️ Installing requirements..."
 & .\dnd_env\Scripts\python.exe -m pip install -r requirements.txt
 
-# 5. Done
+# 5. Handle Templates
+if (!(Test-Path -Path ./secrets.json)) {
+    echo "📝 Creating 'secrets.json' from template..."
+    if (Test-Path -Path ./secrets.template.json) {
+        Copy-Item -Path ./secrets.template.json -Destination ./secrets.json
+    } elseif (Test-Path -Path "secrets template.json") {
+         Copy-Item -Path "secrets template.json" -Destination ./secrets.json
+    } else {
+        '{"HF_TOKEN": "PASTE_YOUR_HUGGINGFACE_TOKEN_HERE"}' | Out-File -FilePath ./secrets.json -Encoding utf8
+    }
+}
+
+if (!(Test-Path -Path ./plugins.json)) {
+    echo "📝 Creating 'plugins.json' from template..."
+    if (Test-Path -Path ./plugins.template.json) {
+        Copy-Item -Path ./plugins.template.json -Destination ./plugins.json
+    }
+}
+
+# 6. Done
 echo "✨ DONE! You can now activate your environment using:"
 echo "./dnd_env/Scripts/Activate.ps1"
 echo "Or just run the pipeline script:"

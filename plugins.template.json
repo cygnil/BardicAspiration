@@ -1,0 +1,12 @@
+{
+  "post_transcribe": [],
+  "post_extract_samples": [],
+  "post_diarize": [],
+  "post_annotate": [],
+  "post_visualize": [],
+  "post_summarize": [],
+  "post_update_wiki": [],
+  "post_relink_wiki": [],
+  "post_recap": [],
+  "pipeline_complete": []
+}

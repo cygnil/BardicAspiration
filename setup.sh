@@ -41,10 +41,19 @@ mkdir -p campaigns
 # Ensure default JSON config structures exist so the primary scripts don't crash on start
 if [ ! -f "secrets.json" ]; then
     echo "📝 Creating 'secrets.json' from template..."
-    if [ -f "secrets template.json" ]; then
+    if [ -f "secrets.template.json" ]; then
+        cp "secrets.template.json" secrets.json
+    elif [ -f "secrets template.json" ]; then # Fallback in case of old naming
         cp "secrets template.json" secrets.json
     else
         echo '{"HF_TOKEN": "PASTE_YOUR_HUGGINGFACE_TOKEN_HERE"}' > secrets.json
+    fi
+fi
+
+if [ ! -f "plugins.json" ]; then
+    echo "📝 Creating 'plugins.json' from template..."
+    if [ -f "plugins.template.json" ]; then
+        cp "plugins.template.json" plugins.json
     fi
 fi
 

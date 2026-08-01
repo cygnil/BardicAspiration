@@ -54,6 +54,36 @@ def run_command(command_args: list[str], step_name: str) -> None:
         sys.exit(rc)
     print(f"✅ STEP COMPLETE: {step_name}\n")
 
+import json
+
+def fire_hook(hook_name: str, campaign: str, session_num: int) -> None:
+    """Reads plugins.json and executes any commands registered to the given lifecycle hook."""
+    plugins_file = BASE_DIR / "plugins.json"
+    if not plugins_file.exists():
+        return
+        
+    try:
+        with open(plugins_file, "r", encoding="utf-8") as f:
+            registry = json.load(f)
+    except json.JSONDecodeError:
+        print(f"⚠️ Warning: plugins.json contains invalid JSON. Disabling hooks.")
+        return
+
+    commands = registry.get(hook_name, [])
+    for cmd_str in commands:
+        if not cmd_str or cmd_str.startswith("//"):
+            continue
+            
+        # Replace variables
+        formatted_cmd = cmd_str.replace("{campaign}", campaign).replace("{session}", str(session_num))
+        
+        # Split command (simple space split, assuming plugins don't have spaces in args for now. For robust parsing, use shlex.split)
+        import shlex
+        cmd_args = shlex.split(formatted_cmd)
+        
+        print(f"🔌 Triggering Hook '{hook_name}' -> {cmd_args[0]}")
+        run_command(cmd_args, f"Plugin Event: {hook_name}")
+
 # --- 🎮 RUNTIME CLI ---
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="D&D Post-Session Master Orchestration Pipeline.")
@@ -85,26 +115,31 @@ if __name__ == "__main__":
         if args.info:
             transcribe_cmd.extend(["--details", args.info])
         run_command(transcribe_cmd, "WhisperX Audio Transcription")
+    fire_hook("post_transcribe", campaign, session_num)
 
     # --- STEP 2: EXTRACT SAMPLES ---
     if 2 not in args.skip:
         extract_cmd = [ENV_PYTHON, "bin/extract_samples.py", campaign, str(session_num)]
         run_command(extract_cmd, "Speaker Reference Sample Extraction")
+    fire_hook("post_extract_samples", campaign, session_num)
 
     # --- STEP 3: DIARIZE ---
     if 3 not in args.skip:
         diarize_cmd = [ENV_PYTHON, "bin/diarize.py", campaign, str(session_num)]
         run_command(diarize_cmd, "Scribe Identity Resolution")
+    fire_hook("post_diarize", campaign, session_num)
     
     # --- STEP 4: ANNOTATE ---
     if 4 not in args.skip:
         annotate_cmd = [ENV_PYTHON, "bin/annotate.py", campaign, str(session_num)]
         run_command(annotate_cmd, "Zero-Shot Emotional & Contextual Inference")
+    fire_hook("post_annotate", campaign, session_num)
 
     # --- STEP 5: VISUALIZE ---
     if 5 not in args.skip:
         visualize_cmd = [ENV_PYTHON, "bin/visualize.py", campaign, str(session_num)]
         run_command(visualize_cmd, "Visual Summary Generation")
+    fire_hook("post_visualize", campaign, session_num)
 
     # --- STEP 6: ANALYZE / SUMMARIZE ---
     if 6 not in args.skip:
@@ -113,6 +148,7 @@ if __name__ == "__main__":
         if args.api_key: summarize_cmd.extend(["-k", args.api_key])
         if args.model: summarize_cmd.extend(["-m", args.model])
         run_command(summarize_cmd, "LLM Context Mapping & Session Summary Synthesis")
+    fire_hook("post_summarize", campaign, session_num)
     
     # --- STEP 7: UPDATE WIKI ---
     if 7 not in args.skip:
@@ -121,11 +157,13 @@ if __name__ == "__main__":
         if args.api_key: wiki_cmd.extend(["-k", args.api_key])
         if args.model: wiki_cmd.extend(["-m", args.model])
         run_command(wiki_cmd, "Librarian Automated Entity Tracking")
+    fire_hook("post_update_wiki", campaign, session_num)
 
     # --- STEP 8: WIKI CROSS-REFERENCE RELINKING ---
     if 8 not in args.skip:
         relink_cmd = [ENV_PYTHON, "bin/relink_wiki.py", campaign]
         run_command(relink_cmd, "Wiki Markdown Retroactive Entity Linker")
+    fire_hook("post_relink_wiki", campaign, session_num)
 
     # --- STEP 9: AUDIO RECAP COMPILATION ---
     if 9 not in args.skip:
@@ -139,6 +177,9 @@ if __name__ == "__main__":
         if args.next: recap_cmd.append("--next")
         
         run_command(recap_cmd, "Pydub Cinematic Audio Recap Splicing")
+    fire_hook("post_recap", campaign, session_num)
+
+    fire_hook("pipeline_complete", campaign, session_num)
 
     print("========================================================")
     print("🎉 ALL PIPELINE TASKS COMPLETE SUCCESSFULY!")
