@@ -1,29 +1,38 @@
-# D&D Post-Session Pipeline
+# RPG Post-Session Pipeline
 
-A set of tools for processing and analyzing Dungeons & Dragons session audio. It uses WhisperX for speech-to-text alignment and PyAnnote for speaker diarization.
+A set of tools for processing and analyzing session audio for tabletop role-playing games. It uses WhisperX for speech-to-text alignment and PyAnnote for speaker diarization.
 
 ## Prerequisites
 
-You will need `ffmpeg` installed on your Linux system (or WSL).
-To install `ffmpeg` on Ubuntu/Debian:
+You will need `ffmpeg` installed on your system.
+To install `ffmpeg` on Ubuntu/Debian/WSL:
 ```bash
 sudo apt update && sudo apt install -y ffmpeg
 ```
+For Windows Native, install `ffmpeg` via winget or Scoop and ensure it's in your PATH.
 
 You will also need Python 3.
 
 ## Installation and Setup
 
-To easily set up your environment, install the necessary dependencies, and create the required configuration templates, run the included `setup.sh` script:
+Select the installation script based on your operating system:
 
+### Linux / macOS / WSL
+Run the included `setup.sh` bash script:
 ```bash
 bash setup.sh
 ```
 
-This script will:
-1. Check for `ffmpeg`.
+### Windows Native
+Run the included PowerShell script (requires PowerShell execution policies to allow local scripts, typically `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`):
+```powershell
+.\setup.ps1
+```
+
+Both scripts will automatically:
+1. Check for `ffmpeg` availability.
 2. Create a clean Python virtual environment named `dnd_env`.
-3. Install PyTorch with CUDA 12.1 GPU acceleration.
+3. Install PyTorch with CUDA GPU acceleration components.
 4. Install WhisperX and other required dependencies (such as `pydub`, `openai`, `transformers`).
 5. Generate template files for `secrets.json` and `campaign_registry.json` if they do not already exist.
 
@@ -48,11 +57,16 @@ After running `setup.sh`, you need to configure a few things before running the 
   ```
   This creates `campaigns/Homebrouhaha/` containing a default registry and folders for its sessions.
 
-3. **`defaults.json`**: Optional base configuration object stored securely in the root repository. Defines all base variables mapped dynamically against specific tools. Use this to permanently set configuration properties like `--model` or `--api-url` globally instead of manually typing variables dynamically every time out of orchestrator. You configure this block like:
+3. **`defaults.json`**: Optional configuration JSON stored securely in the root repository. Defines base default variable mappings applied dynamically against specific tools. Use this to permanently set configuration properties like `--model` or `--api-url` globally instead of manually passing arguments to the CLI every time. 
+
+  Supported arguments vary by script, but commonly include `--model`, `--api-url`, and `--api-key`. CLI arguments provided at runtime will override these defaults. Example structure:
   ```json
   {
+      "run_pipeline.py": {
+          "--model": "llama3.1:70b"
+      },
       "recap.py": {
-          "--model": "gpt-5-mini",
+          "--model": "gpt-4o-mini",
           "--api-url": "https://api.openai.com/v1"
       }
   }
@@ -114,5 +128,28 @@ python bin/run_pipeline.py /path/to/session.mp3 my_campaign 1 -l 90 --model qwen
 - `-u`, `--api-url`: API URL for remote inference (optional)
 - `-k`, `--api-key`: API Key for remote inference (optional)
 - `-n`, `--next`: Peek at next session's summary to target foreshadowing (optional)
-- `--skip`: List of step numbers to skip (1-8) (optional, e.g. `--skip 1 3`)
+- `--skip`: List of step numbers to skip (1-9) (optional, e.g. `--skip 1 3`)
 - `--info`: Optional raw JSON string of extra session metadata to inject (optional)
+
+### Pipeline Steps (For `--skip`)
+
+The pipeline consists of the following 9 steps. You can pass these numbers to the `--skip` argument to bypass specific stages (e.g., `--skip 1 2 3`):
+
+1. **WhisperX Audio Transcription** (`transcribe.py`): Speech-to-text transcription with alignment.
+2. **Speaker Reference Sample Extraction** (`extract_samples.py`): Extracts audio samples for each detected speaker.
+3. **Scribe Identity Resolution** (`diarize.py`): Speaker diarization and identity mapping.
+4. **Zero-Shot Emotional & Contextual Inference** (`annotate.py`): Adds emotional and contextual annotations to the transcript.
+5. **Visual Summary Generation** (`visualize.py`): Generates visual timelines and summaries (e.g., HTML/CSS views).
+6. **LLM Context Mapping & Session Summary Synthesis** (`summarize.py`): AI-driven summary of the session.
+7. **Librarian Automated Entity Tracking** (`update_wiki.py`): Updates the campaign wiki with new entities.
+8. **Wiki Markdown Retroactive Entity Linker** (`relink_wiki.py`): Cross-references and links entities across wiki markdowns.
+9. **Pydub Cinematic Audio Recap Splicing** (`recap.py`): Generates the final cinematic audio recap.
+
+## Web Hosting
+
+The generated files and campaign wiki are designed to be easily hosted as a static website. The root `www/` directory contains the core HTML, CSS, and JS components to display and navigate your campaigns.
+
+To host your generated campaigns online:
+1. Upload the entire `www/` directory to the root of your web server or static hosting provider (like GitHub Pages, Vercel, or an Apache/Nginx server).
+2. Copy the entire `campaigns/` directory generated by the pipeline directly into the `www/` directory on your server (resulting in `www/campaigns/`).
+3. The web app uses client-side JavaScript to discover and load the JSON manifests from `www/campaigns/`, allowing it to serve as a fully self-contained wiki, transcription viewer, and audio player without requiring a backend database.
