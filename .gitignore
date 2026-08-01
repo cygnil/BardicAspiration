@@ -5,4 +5,5 @@ dnd_env/
 nltk_data/
 
 defaults.json
+plugins.json
 secrets.json
