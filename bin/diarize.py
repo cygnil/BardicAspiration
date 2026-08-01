@@ -127,7 +127,7 @@ def run_diarization(campaign_name, session_num, force_overwrite=False, api_url=N
     print(f"✅ Diarization and Identity Resolution complete. ({time.time() - diarization_start_time:.2f}s)")
 
     session_manifest = {
-        "session_file": os.path.abspath(input_path),
+        "session_file": os.path.relpath(input_path),
         "speaker_identities": speaker_map,
         "campaign_metadata": {
             "campaign_name": REGISTRY.get("campaign_name", "Unknown Campaign"),

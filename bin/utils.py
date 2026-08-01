@@ -3,32 +3,46 @@ import sys
 import time
 import subprocess
 import json
+import argparse
 from openai import OpenAI
 
-def get_wsl_host_ip():
+import platform
+from pathlib import Path
+
+# Extract global directory constants
+BASE_DIR = Path(__file__).resolve().parent.parent
+CAMPAIGNS_DIR = BASE_DIR / "campaigns"
+WWW_DIR = BASE_DIR / "www"
+
+def get_wsl_host_ip() -> str:
     """Dynamically parses the Linux routing table to bridge to Windows Ollama."""
     try:
-        cmd = "ip route | grep default | awk '{print $3}'"
-        host_ip = subprocess.check_output(cmd, shell=True).decode().strip()
-        return host_ip if host_ip else "127.0.0.1"
+        if platform.system() == "Windows":
+             return os.getenv("OLLAMA_HOST", "127.0.0.1")
+        elif platform.system() == "Darwin": # MacOS
+             return "127.0.0.1" # or whatever MacOS routing requires
+        else: # Linux/WSL
+            cmd = "ip route | grep default | awk '{print $3}'"
+            host_ip = subprocess.check_output(cmd, shell=True).decode().strip()
+            return host_ip if host_ip else "127.0.0.1"
     except Exception:
         return "127.0.0.1"
 
 WINDOWS_HOST_IP = get_wsl_host_ip()
 
-def load_secrets():
+def load_secrets() -> dict:
+    secrets_path = BASE_DIR / "secrets.json"
     try:
-        with open("secrets.json", "r", encoding="utf-8") as f:
+        with open(secrets_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
         return {}
 
-def apply_defaults(parser, script_name=None):
+def apply_defaults(parser: argparse.ArgumentParser, script_name: str | None = None) -> None:
     # Checks defaults.json for default argument values keyed to the script run.
     try:
         # Resolve the root workspace directory robustly
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        path = os.path.join(base_dir, "defaults.json")
+        path = BASE_DIR / "defaults.json"
             
         with open(path, "r", encoding="utf-8") as f:
             defaults = json.load(f)
@@ -67,7 +81,7 @@ def apply_defaults(parser, script_name=None):
     except json.JSONDecodeError:
         print("Warning: defaults.json contains invalid JSON.")
 
-def get_api_client(api_url=None, api_key=None):
+def get_api_client(api_url: str | None = None, api_key: str | None = None) -> OpenAI:
     from urllib.parse import urlparse
     if api_url:
         print(f"🔗 Connected to Remote API Host at: {api_url}")
@@ -81,7 +95,9 @@ def get_api_client(api_url=None, api_key=None):
         print(f"🔗 Connected to Windows Ollama Host at: http://{WINDOWS_HOST_IP}:11434")
         return OpenAI(base_url=f"http://{WINDOWS_HOST_IP}:11434/v1", api_key="ollama")
 
-def animate_spinner(stop_event, message):
+import threading
+
+def animate_spinner(stop_event: threading.Event, message: str) -> None:
     spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
     idx = 0
     while not stop_event.is_set():

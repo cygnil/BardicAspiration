@@ -5,14 +5,21 @@ import os
 import subprocess
 import sys
 
+import platform
+from pathlib import Path
+
 # --- 🛠️ CONFIGURATION ---
-ENV_PYTHON = "./dnd_env/bin/python"
+BASE_DIR = Path(__file__).resolve().parent.parent
+if platform.system() == "Windows":
+    ENV_PYTHON = str(BASE_DIR / "dnd_env" / "Scripts" / "python")
+else:
+    ENV_PYTHON = str(BASE_DIR / "dnd_env" / "bin" / "python")
 
 if not os.path.exists(ENV_PYTHON):
     print(f"❌ Error: Cannot find virtual environment python at '{ENV_PYTHON}'.")
     sys.exit(1)
 
-def run_command(command_args, step_name):
+def run_command(command_args: list[str], step_name: str) -> None:
     print(f"\n========================================================")
     print(f"🎬 STARTING STEP: {step_name}")
     print(f"========================================================")
@@ -67,7 +74,7 @@ if __name__ == "__main__":
     campaign = args.campaign
     session_num = args.session
     session_str = f"{str(session_num).zfill(3)}"
-    target_dir = os.path.join("campaigns", campaign, "sessions", session_str)
+    target_dir = BASE_DIR / "campaigns" / campaign / "sessions" / session_str
 
     print("⚔️ Starting Full Post-Session Processing Core... ⚔️")
     print(f"📦 Target Directory: {target_dir}")
@@ -135,5 +142,5 @@ if __name__ == "__main__":
 
     print("========================================================")
     print("🎉 ALL PIPELINE TASKS COMPLETE SUCCESSFULY!")
-    print(f"📂 Workspace Folder: {os.path.abspath(target_dir)}")
+    print(f"📂 Workspace Folder: {target_dir.resolve()}")
     print("========================================================")
