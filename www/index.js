@@ -461,3 +461,12 @@ window.addEventListener('popstate', (e) => {
 
 // Initialize the loader when the DOM is ready
 document.addEventListener('DOMContentLoaded', loadMarkdown);
+document.addEventListener('DOMContentLoaded', () => {
+    const toggleBtn = document.getElementById('mobile-nav-toggle');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('mobile-collapsed');
+        });
+    }
+});

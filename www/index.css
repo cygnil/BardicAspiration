@@ -147,3 +147,34 @@ a:hover {
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
+@media (max-width: 768px) { #layout { flex-direction: column; } #sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid #ddd; padding: 1rem; } .content-wrapper { padding: 1rem; margin: 1rem; } }
+/* Mobile Navigation Button */
+#mobile-nav-toggle {
+    display: none;
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+
+@media (max-width: 768px) {
+    #mobile-nav-toggle {
+        display: block;
+    }
+    
+    #sidebar {
+        padding: 1rem;
+        max-height: 50vh; /* Allow it to be scrollable but not take up entire screen */
+        overflow-y: auto;
+    }
+
+    #sidebar.mobile-collapsed #nav-content {
+        display: none;
+    }
+}
