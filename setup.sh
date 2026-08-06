@@ -33,7 +33,7 @@ echo "🎙️ Installing WhisperX speech-to-text alignment matrix from source...
 pip install git+https://github.com/m-bain/whisperX.git
 
 echo "🎵 Installing integration wrappers (OpenAI API compatibility, Pydub & Matplotlib)..."
-pip install pydub openai tqdm transformers matplotlib
+pip install pydub openai tqdm transformers matplotlib yt-dlp deno
 
 echo "📂 Verifying project file structure..."
 mkdir -p campaigns

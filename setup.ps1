@@ -25,8 +25,15 @@ if (!(Test-Path -Path ./dnd_env)) {
 }
 
 # 4. Activate and Install
-echo "⬇️ Installing requirements..."
-& .\dnd_env\Scripts\python.exe -m pip install -r requirements.txt
+echo "⬇️ Installing basic wrappers..."
+& .\dnd_env\Scripts\python.exe -m pip install --upgrade pip
+& .\dnd_env\Scripts\python.exe -m pip install pydub openai tqdm transformers matplotlib yt-dlp deno
+
+echo "🔥 Installing PyTorch with Windows CUDA 12.1 GPU acceleration..."
+& .\dnd_env\Scripts\python.exe -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+echo "🎙️ Installing WhisperX speech-to-text alignment matrix from source..."
+& .\dnd_env\Scripts\python.exe -m pip install git+https://github.com/m-bain/whisperX.git
 
 # 5. Handle Templates
 if (!(Test-Path -Path ./secrets.json)) {

@@ -11,6 +11,7 @@ import threading
 import torch
 import numpy as np
 import whisperx
+import yt_dlp
 from whisperx.diarize import DiarizationPipeline
 from transformers import pipeline
 from tqdm import tqdm
@@ -416,7 +417,7 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="WhisperX Multi-track engine + Audio Slicer")
-    parser.add_argument("input_path", help="Target .mp3 file or directory of stems.")
+    parser.add_argument("input_path", help="Target .mp3 file, directory of stems, or URL to a video/audio.")
     parser.add_argument("campaign_name", help="Name of the campaign this sequence belongs to.")
     parser.add_argument("session_num", type=int, help="Chronological sequence ID of the session.")
     parser.add_argument("--db-threshold", type=float, default=-45.0, help="VAD noise floor threshold (default: -45.0).")
@@ -427,7 +428,52 @@ if __name__ == "__main__":
     apply_defaults(parser, 'transcribe.py')
     args = parser.parse_args()
     
+    input_path = args.input_path
+    
+    # Check if input path is a URL and grab it using yt-dlp first if it is
+    if input_path.startswith("http://") or input_path.startswith("https://"):
+        print(f"🎬 Detected remote URL: {input_path}")
+        print(f"⬇️ Downloading highest quality audio layer to a temporary local file...")
+        
+        # Download locally to campaigns/{campaign}/sessions/{session}/source_audio.mp3
+        session_str = f"{str(args.session_num).zfill(3)}"
+        target_dir = os.path.join("campaigns", args.campaign_name, "sessions", session_str)
+        os.makedirs(target_dir, exist_ok=True)
+        
+        # yt-dlp will automatically append the extension (e.g. .mp3) when the FFmpegExtractAudio processor runs,
+        # so we just provide the base name here.
+        download_target_base = os.path.join(target_dir, "source_audio") 
+        
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': download_target_base,
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'quiet': False,
+            'verbose': False,
+            'nocheckcertificate': True,
+            'ignoreerrors': False,
+            'remote_components': ['ejs:github'],
+            'js_runtimes': {
+                'deno': {
+                    'path': os.path.join(os.environ.get("VIRTUAL_ENV", ""), "bin", "deno")
+                }
+            }
+        }
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([input_path])
+            
+        download_target_final = f"{download_target_base}.mp3"
+        print(f"✅ Finished downloading to: {download_target_final}")
+        
+        # Override the input parameter so the rest of the script triggers standard single-file execution Mode B
+        input_path = download_target_final
+    
     if args.db_threshold is not None and args.db_threshold > 0:
         args.db_threshold = -args.db_threshold
         
-    process_pipeline(args.input_path, args.campaign_name, args.session_num, args.db_threshold, args.force, getattr(args, "details", None), args.dedup)
+    process_pipeline(input_path, args.campaign_name, args.session_num, args.db_threshold, args.force, getattr(args, "details", None), args.dedup)

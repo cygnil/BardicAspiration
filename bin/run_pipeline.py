@@ -87,7 +87,7 @@ def fire_hook(hook_name: str, campaign: str, session_num: int) -> None:
 # --- 🎮 RUNTIME CLI ---
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="D&D Post-Session Master Orchestration Pipeline.")
-    parser.add_argument("input", help="Path to raw session audio file (or tracks folder).")
+    parser.add_argument("input", help="Path to raw session audio file, remote URL (e.g. YouTube), or tracks folder.")
     parser.add_argument("campaign", help="Name of the campaign (e.g. 'netherdeep')")
     parser.add_argument("session", type=int, help="Session number (e.g. 1)")
     parser.add_argument("-l", "--length", type=int, default=90, help="Target audio recap length in seconds (default: 90).")
