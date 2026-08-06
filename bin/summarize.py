@@ -214,6 +214,19 @@ if __name__ == "__main__":
         sys.exit(1)
 
     output_path = os.path.join(target_dir, "summary.md")
+    
+    # Check if a summary file already exists, and if so, safely archive it
+    if os.path.exists(output_path):
+        counter = 1
+        while True:
+            backup_path = os.path.join(target_dir, f"summary.{counter}.md")
+            if not os.path.exists(backup_path):
+                # We found a free backup name
+                import shutil
+                print(f"⚠️ Notice: Existing summary found. Backing up to: {backup_path}")
+                shutil.move(output_path, backup_path)
+                break
+            counter += 1
         
     print(f"📥 Loading session artifact: {input_path}")
     data = load_session_file(input_path)
