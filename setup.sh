@@ -60,6 +60,9 @@ fi
 # The campaign registry is now managed by create_campaign.py per-campaign
 # So we don't automatically drop a blank one in the root anymore.
 
+# Make all bin scripts executable
+chmod +x bin/*.py
+
 echo "=========================================================="
 echo "🎉 SETUP SUCCESSFUL!"
 echo "=========================================================="
