@@ -94,12 +94,17 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--model", default="qwen2.5", help="Target model engine (default: qwen2.5).")
     parser.add_argument("-u", "--api-url", help="API URL for remote inference (e.g., https://api.openai.com/v1).")
     parser.add_argument("-k", "--api-key", help="API Key for remote inference.")
+    parser.add_argument("--local", action="store_true", help="Force local inference (overrides defaults.json remote APIs).")
     parser.add_argument("-n", "--next", action="store_true", help="Peek at session_num + 1 recap summary to target foreshadowing.")
     parser.add_argument("--skip", nargs="+", type=int, default=[], help="List of step numbers to skip (1-9).")
     parser.add_argument("--info", type=str, help="Optional raw JSON string of extra session metadata to inject.")
     from utils import apply_defaults
     apply_defaults(parser, 'run_pipeline.py')
     args = parser.parse_args()
+
+    if args.local:
+        args.api_url = None
+        args.api_key = None
 
     campaign = args.campaign
     session_num = args.session

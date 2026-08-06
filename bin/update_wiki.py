@@ -223,8 +223,14 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--model", default="qwen2.5", help="Target Ollama model engine.")
     parser.add_argument("-u", "--api-url", help="API URL for remote inference.")
     parser.add_argument("-k", "--api-key", help="API Key for remote inference.")
+    parser.add_argument("--local", action="store_true", help="Force local Ollama usage and ignore defaults.json API URLs.")
     
     from utils import apply_defaults
     apply_defaults(parser, 'update_wiki.py')
     args = parser.parse_args()
+
+    if args.local:
+        args.api_url = None
+        args.api_key = None
+    
     update_wiki(args.campaign, args.session, args.force, args.model, args.api_url, args.api_key)

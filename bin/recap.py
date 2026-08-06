@@ -143,9 +143,15 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--model", default="qwen2.5", help="Target LLM model (default: qwen2.5).")
     parser.add_argument("-u", "--api-url", help="Optional remote API base URL.")
     parser.add_argument("-k", "--api-key", help="Optional API key for the remote endpoint.")
+    parser.add_argument("--local", action="store_true", help="Force local Ollama usage and ignore defaults.json API URLs.")
+    
     from utils import apply_defaults
     apply_defaults(parser)
     args = parser.parse_args()
+
+    if args.local:
+        args.api_url = None
+        args.api_key = None
 
     # Directory structures
     session_str = f"{str(args.session).zfill(3)}"

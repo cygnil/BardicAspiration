@@ -186,10 +186,15 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--model", default="qwen2.5", help="Target model name (default: qwen2.5).")
     parser.add_argument("-u", "--api-url", help="Optional remote API base URL (e.g. OpenAI, Anthropic via LiteLLM, Groq). If not specified, uses local Ollama.")
     parser.add_argument("-k", "--api-key", help="Optional API key for the remote endpoint.")
+    parser.add_argument("--local", action="store_true", help="Force local Ollama usage and ignore defaults.json API URLs.")
     
     from utils import apply_defaults
     apply_defaults(parser, 'summarize.py')
     args = parser.parse_args()
+    
+    if args.local:
+        args.api_url = None
+        args.api_key = None
     
     # Establish directory structures
     session_str = f"{str(args.session).zfill(3)}"
