@@ -130,6 +130,8 @@ Valid categories are: characters, npcs, events, locations, items, factions, othe
         
     print("\n✅ New knowledge categorized! Writing to archives...")
     
+    processed_updates = []
+    
     for update in updates:
         file_name = update.get("file_name")
         if not file_name:
@@ -162,6 +164,8 @@ Valid categories are: characters, npcs, events, locations, items, factions, othe
         # Prevent duplicate session logging
         session_marker = f"Session {session_num}:"
         safe_to_write_pk = session_marker not in pk_append
+        
+        action_taken = "none"
 
         # Handle updating an existing file safely
         if os.path.exists(file_path):
@@ -190,6 +194,7 @@ Valid categories are: characters, npcs, events, locations, items, factions, othe
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
                 
+            action_taken = "appended"
             print(f"  📝 Updated existing entity: {file_name}")
 
         else:
@@ -208,7 +213,23 @@ Valid categories are: characters, npcs, events, locations, items, factions, othe
             with open(index_path, "w", encoding="utf-8") as f:
                 json.dump(wiki_index, f, indent=4)
                 
+            action_taken = "created"
             print(f"  ✨ Created new entity: {file_name}")
+            
+        update["action"] = action_taken
+        processed_updates.append(update)
+
+    # Write out a record of updates to a JSON file in the session folder
+    wiki_changes_base = os.path.join(target_dir, "wiki_changes")
+    changes_counter = 1
+    changes_file = f"{wiki_changes_base}.json"
+    while os.path.exists(changes_file):
+        changes_file = f"{wiki_changes_base}.{changes_counter}.json"
+        changes_counter += 1
+        
+    with open(changes_file, "w", encoding="utf-8") as f:
+        json.dump(processed_updates, f, indent=2)
+    print(f"  💾 Saved wiki updates manifest to {os.path.basename(changes_file)}")
 
     elapsed_time = time.time() - start_time
     print("========================================================")
