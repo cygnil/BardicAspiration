@@ -98,7 +98,9 @@ After running `setup.sh`, you need to configure a few things before running the 
         "factions": ["The Bear Brigade"],
         "ipa_pronunciations": ["ˈdeɪ.zi ðə mɔːrˈtɪʃən"],
         "keywords": [],
-        "common_misspellings": ["Dazey", "Desey"]
+        "common_misspellings": {
+            "Daisy": ["Dazey", "Desey"]
+        }
       },
       {
         "name": "Spira",
@@ -110,7 +112,7 @@ After running `setup.sh`, you need to configure a few things before running the 
   }
   ```
 
-You may optionally include a `common_misspellings` tag for players or entities to instruct the transcribe logic to forcefully swap phonetic transcriptions that whisper hallucinates into the correct lore name prior to writing the output transcript!
+You may optionally include a `common_misspellings` tag for players or entities to instruct the transcribe logic to forcefully swap phonetic transcriptions that whisper hallucinates into the correct lore name prior to writing the output transcript! This should be formatted as a dictionary where the key is the target correct lore word, and the value is an array of strings representing the mistaken spellings.
 
 ## Usage
 

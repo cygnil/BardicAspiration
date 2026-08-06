@@ -375,10 +375,10 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
     all_entries = REGISTRY.get("entities", []) + REGISTRY.get("players", [])
     
     for entry in all_entries:
-        if "common_misspellings" in entry and entry["common_misspellings"]:
-            correct_name = entry.get("character_short_name", entry.get("name"))
-            for misspelling in entry["common_misspellings"]:
-                corrections[misspelling.lower()] = correct_name
+        if "common_misspellings" in entry and isinstance(entry["common_misspellings"], dict):
+            for correct_name, misspellings_list in entry["common_misspellings"].items():
+                for misspelling in misspellings_list:
+                    corrections[misspelling.lower()] = correct_name
 
     if corrections:
         sorted_misspellings = sorted(corrections.keys(), key=len, reverse=True)
