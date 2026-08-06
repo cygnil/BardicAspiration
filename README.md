@@ -97,7 +97,8 @@ After running `setup.sh`, you need to configure a few things before running the 
         "type": "NPC",
         "factions": ["The Bear Brigade"],
         "ipa_pronunciations": ["ˈdeɪ.zi ðə mɔːrˈtɪʃən"],
-        "keywords": []
+        "keywords": [],
+        "common_misspellings": ["Dazey", "Desey"]
       },
       {
         "name": "Spira",
@@ -108,6 +109,8 @@ After running `setup.sh`, you need to configure a few things before running the 
     ]
   }
   ```
+
+You may optionally include a `common_misspellings` tag for players or entities to instruct the transcribe logic to forcefully swap phonetic transcriptions that whisper hallucinates into the correct lore name prior to writing the output transcript!
 
 ## Usage
 

@@ -367,6 +367,30 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
                 }
             })
 
+    # Check misspellings before writing
+    import re
+    corrections = {}
+    
+    # Combine entities and players for misspelling checks
+    all_entries = REGISTRY.get("entities", []) + REGISTRY.get("players", [])
+    
+    for entry in all_entries:
+        if "common_misspellings" in entry and entry["common_misspellings"]:
+            correct_name = entry.get("character_short_name", entry.get("name"))
+            for misspelling in entry["common_misspellings"]:
+                corrections[misspelling.lower()] = correct_name
+
+    if corrections:
+        sorted_misspellings = sorted(corrections.keys(), key=len, reverse=True)
+        escaped_terms = [re.escape(m) for m in sorted_misspellings]
+        pattern = re.compile(r'\b(' + '|'.join(escaped_terms) + r')\b', re.IGNORECASE)
+
+        def replace_match(match):
+            return corrections[match.group(1).lower()]
+
+        for seg in processed_transcript:
+            seg["text"] = pattern.sub(replace_match, seg["text"])
+
     session_manifest={
         "session_file": os.path.abspath(input_path),
         "session_number": session_num,
