@@ -107,6 +107,9 @@ async function loadMarkdown() {
                 `;
             }
             
+            // View transcript link
+            const transcriptLink = `<a href="transcript.html?path=${path.replace('summary.md', 'transcript.json')}" class="media-link" style="background-color: #28a745; margin-left: 0.25rem;">📄 View Full Transcript</a>`;
+            
             // Check for session_info.json for metadata
             let metaHtml = '';
             let headerHtml = '';
@@ -116,21 +119,30 @@ async function loadMarkdown() {
                     const infoJson = await infoResponse.json();
                     
                     const durationStr = infoJson.audio_duration ? 
-                        `<span>⏱️ ${Math.floor(infoJson.audio_duration / 3600)}h ${Math.floor((infoJson.audio_duration % 3600) / 60)}m</span>` : '';
+                        `<span style="display:flex; align-items:center; margin-right: 15px;">⏱️ ${Math.floor(infoJson.audio_duration / 3600)}h ${Math.floor((infoJson.audio_duration % 3600) / 60)}m</span>` : '';
                         
                     const mediaLink = infoJson.media_url ? 
-                        `<a href="${infoJson.media_url}" target="_blank" class="media-link">🎥 View Original Recording</a>` : '';
+                        `<a href="${infoJson.media_url}" target="_blank" class="media-link" style="margin-right: 0.5rem;">🎥 View Original Recording</a>` : '';
                         
                     if (durationStr || mediaLink) {
                         metaHtml = `
-                            <div class="meta-info">
+                            <div class="meta-info" style="align-items: center; gap: 0;">
                                 ${durationStr}
                                 ${mediaLink}
+                                ${transcriptLink}
                             </div>
                         `;
                     }
                 }
             } catch(e) {}
+            
+            if (!metaHtml) {
+                 metaHtml = `
+                    <div class="meta-info">
+                        ${transcriptLink}
+                    </div>
+                `;
+            }
             
             contentDiv.innerHTML = `
                 <div class="session-header">
@@ -381,7 +393,11 @@ async function loadSidebar(currentPath, campaignWikiDir) {
                             // ignore, fallback to default title
                         }
                         
-                        sessionsHtml += `<li><a href="session.html?path=${summaryPath}">Session ${parseInt(sessionId, 10)}${title !== `Session ${parseInt(sessionId, 10)}` ? `: ${title.split(': ')[1]}` : ''}</a></li>`;
+                        const displayTitle = `Session ${parseInt(sessionId, 10)}${title !== `Session ${parseInt(sessionId, 10)}` ? `: ${title.split(': ')[1]}` : ''}`;
+                        sessionsHtml += `<li style="display: flex; align-items: center; justify-content: space-between;">
+                            <a href="session.html?path=${summaryPath}" style="flex-grow: 1;">${displayTitle}</a>
+                            <a href="transcript.html?path=${sessionsDirUrl}${sessionId}/transcript.json" style="font-size: 0.8em; padding: 0 5px; color: #888; text-decoration: none;" title="Toggle Transcript">[T]</a>
+                        </li>`;
                     }
                 }
                 
@@ -432,16 +448,22 @@ async function loadSidebar(currentPath, campaignWikiDir) {
             link.addEventListener('click', (e) => {
                 const url = new URL(link.href);
                 const isTargetSession = url.pathname.endsWith('session.html');
-                const currentIsSessionViewer = window.location.pathname.endsWith('session.html');
+                const isTargetTranscript = url.pathname.endsWith('transcript.html');
+                
+                const currentPathName = window.location.pathname;
+                const currentIsSessionViewer = currentPathName.endsWith('session.html');
+                const currentIsTranscriptViewer = currentPathName.endsWith('transcript.html');
                 
                 // If the link points to the same HTML file we are currently on, we can safely intercept!
-                if ((isTargetSession && currentIsSessionViewer) || (!isTargetSession && !currentIsSessionViewer)) {
+                if ((isTargetSession && currentIsSessionViewer) || 
+                    (isTargetTranscript && currentIsTranscriptViewer) || 
+                    (!isTargetSession && !isTargetTranscript && !currentIsSessionViewer && !currentIsTranscriptViewer)) {
                     e.preventDefault();
                     const resolvedPath = url.searchParams.get('path');
                     window.history.pushState({path: resolvedPath}, '', url);
                     window.dispatchEvent(new Event('popstate'));
                 }
-                // Otherwise, let the browser load the link normally to switch between session.html <-> index.html
+                // Otherwise, let the browser load the link normally to switch between viewer modes
             });
         });
 
@@ -456,11 +478,17 @@ async function loadSidebar(currentPath, campaignWikiDir) {
 
 // Listen for popstate events (e.g. forward/back buttons or pushState calls) to re-render without reloading the page
 window.addEventListener('popstate', (e) => {
-    loadMarkdown();
+    if (typeof loadMarkdown === 'function' && (window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('session.html'))) {
+        loadMarkdown();
+    }
 });
 
 // Initialize the loader when the DOM is ready
-document.addEventListener('DOMContentLoaded', loadMarkdown);
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof loadMarkdown === 'function' && (window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('session.html') || window.location.pathname === '/')) {
+        loadMarkdown();
+    }
+});
 document.addEventListener('DOMContentLoaded', () => {
     const toggleBtn = document.getElementById('mobile-nav-toggle');
     if (toggleBtn) {

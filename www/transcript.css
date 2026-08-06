@@ -1,0 +1,141 @@
+/* transcript.css */
+
+.transcript-controls {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+.transcript-line {
+    display: flex;
+    margin-bottom: 0.5rem;
+    line-height: 1.6;
+}
+.speaker-label {
+    font-weight: bold;
+    min-width: 120px;
+    max-width: 120px;
+    text-align: right;
+    padding-right: 15px;
+    color: #444;
+    flex-shrink: 0;
+}
+.utterance-text {
+    flex-grow: 1;
+}
+.timestamp-link {
+    font-size: 0.85em;
+    color: #888;
+    text-decoration: none;
+    margin-right: 8px;
+    cursor: pointer;
+}
+.timestamp-link:hover {
+    text-decoration: underline;
+    color: #007bff;
+}
+
+.annotation-badge {
+    font-size: 0.75em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    background-color: #f0f0f0;
+    cursor: help;
+    border: 1px solid #ddd;
+}
+.emotion-badge {
+    background-color: #e6f3ff;
+    border-color: #b3d7ff;
+    color: #0056b3;
+}
+.context-badge {
+    background-color: #fdf5e6;
+    border-color: #f5d6a6;
+    color: #d39e00;
+}
+
+/* Tooltip Container */
+.tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+/* Tooltip Text */
+.tooltip .tooltiptext {
+    visibility: hidden;
+    width: 280px;
+    background-color: #333;
+    color: #fff;
+    text-align: left;
+    border-radius: 6px;
+    padding: 8px 12px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%; /* Position above the badge */
+    left: 50%;
+    margin-left: -140px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-weight: normal;
+    font-size: 13px;
+    line-height: 1.4;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.tooltip .tooltiptext::after {
+    content: "";
+    position: absolute;
+    top: 100%; /* Arrow pointing downwards */
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #333 transparent transparent transparent;
+}
+
+/* Make tooltip appear on hover */
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 10px;
+}
+.metric-row {
+    display: contents;
+}
+.metric-label {
+    color: #aaa;
+}
+.metric-val {
+    color: #fff;
+    text-align: right;
+    font-family: monospace;
+}
+
+.spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border-left-color: #09f;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-container {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+}

@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Transcript</title>
+    <!-- Use Marked.js for Markdown parsing required by index.js -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="transcript.css">
+</head>
+<body>
+    <div id="layout">
+        <nav id="sidebar" class="mobile-collapsed">
+            <button id="mobile-nav-toggle">☰ Navigation</button>
+            <div id="nav-content">Loading navigation...</div>
+        </nav>
+        <div id="content">
+            <div class="content-wrapper">
+                <div class="transcript-controls">
+                    <h1 id="transcript-header">Session Transcript</h1>
+                </div>
+                
+                <div id="audio-container" style="margin-bottom: 2rem; display: none;">
+                    <audio id="session-audio" style="width: 100%;" controls></audio>
+                </div>
+
+                <div id="transcript-body">
+                    <div class="loading-container">
+                        <div class="spinner"></div>
+                        <p style="font-style: italic;">Loading transcript data...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="index.js"></script>
+    <script>
+        // Use index.js global sidebar logic then run specific page render
+        
+        // Helper to format seconds nicely M:SS or H:MM:SS
+        function formatTime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            
+            if (h > 0) {
+                return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            }
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        async function renderTranscript() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const path = urlParams.get('path');
+            const transcriptBody = document.getElementById('transcript-body');
+            const audioEl = document.getElementById('session-audio');
+            const audioCont = document.getElementById('audio-container');
+            
+            // Show loading spinner while processing
+            transcriptBody.innerHTML = `
+                <div class="loading-container">
+                    <div class="spinner"></div>
+                    <p style="font-style: italic;">Parsing transcript layout...</p>
+                </div>
+            `;
+            
+            if (!path) {
+                transcriptBody.innerHTML = '<p class="error">No transcript path provided.</p>';
+                return;
+            }
+
+            // Figure out base directory from the provided URL path
+            // e.g. campaigns/netherdeep/sessions/001/transcript.json
+            const basePath = path.substring(0, path.lastIndexOf('/'));
+            
+            // Auto-detect best available version on first load if not explicitly set
+            let selectedFile = "transcript.json";
+            try {
+                const annResp = await fetch(`${basePath}/transcript_annotated.json`, {method: 'HEAD'});
+                if (annResp.ok) {
+                    selectedFile = "transcript_annotated.json";
+                }
+            } catch(e) {}
+            
+            const targetJSON = `${basePath}/${selectedFile}`;
+
+            try {
+                // Peek at session metadata to find original media if available
+                let hasMediaUrl = false;
+                audioCont.style.display = 'none'; // reset just in case we are navigating rapidly between sessions
+                try {
+                    const infoResp = await fetch(`${basePath}/session_info.json`);
+                    if (infoResp.ok) {
+                        const info = await infoResp.json();
+                        if (info.media_url) {
+                            audioEl.src = info.media_url;
+                            audioCont.style.display = 'block';
+                            hasMediaUrl = true;
+                            
+                            // Setup timeline jumping
+                            window.seekTo = function(seconds) {
+                                audioEl.currentTime = seconds;
+                                audioEl.play().catch(e => console.error("Autoplay blocked", e));
+                            }
+                        } else {
+                            audioEl.removeAttribute('src');
+                        }
+                    }
+                } catch (e) {
+                    audioEl.removeAttribute('src');
+                    console.log("No media url available."); 
+                }
+                
+                const response = await fetch(targetJSON);
+                if (!response.ok) {
+                    transcriptBody.innerHTML = `<p class="error">Failed to load transcript file: ${selectedFile}. Pipeline may not have reached this step yet.</p>`;
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                if (!data.transcript || data.transcript.length === 0) {
+                    transcriptBody.innerHTML = '<p>Transcript is empty.</p>';
+                    return;
+                }
+
+                let html = '';
+                
+                // Map identities to colors to make tracking speakers easier
+                const colorMap = {};
+                const distinctColors = [
+                    '#d9381e', '#166a8f', '#228b22', '#800080', 
+                    '#ff8c00', '#008080', '#e9967a', '#483d8b',
+                    '#b22222', '#2f4f4f'
+                ];
+                let cIdx = 0;
+
+                data.transcript.forEach((seg, idx) => {
+                    // Resolve speaker identity color binding
+                    let speaker = seg.speaker || "UNKNOWN";
+                    
+                    // Replace generic speaker label with resolved identity if available
+                    if (data.speaker_identities && data.speaker_identities[speaker]) {
+                        speaker = data.speaker_identities[speaker];
+                    }
+
+                    if (!colorMap[speaker]) {
+                        colorMap[speaker] = distinctColors[cIdx % distinctColors.length];
+                        cIdx++;
+                    }
+                    const spkColor = colorMap[speaker];
+                    
+                    const metrics = seg.transcription_metrics;
+                    
+                    let timestampHtml = '';
+                    let annotationsHtml = '';
+                    
+                    if (metrics) {
+                        const tsStart = metrics.start || 0;
+                        if (hasMediaUrl || audioEl.src) {
+                            timestampHtml = `<a href="${audioEl.src}&t=${Math.floor(tsStart)}" target="_blank" class="timestamp-link" title="Jump to ${formatTime(tsStart)}">[${formatTime(tsStart)}]</a>`;
+                        } else {
+                            timestampHtml = `<span class="timestamp-link" style="cursor:default" title="No audio file mounted">[${formatTime(tsStart)}]</span>`;
+                        }
+
+                        // Build Metric Tooltip Body (Confidence, dB, Clarity, Annotations etc)
+                        let tooltipGrid = `<div class="metrics-grid">
+                            <div class="metric-row"><span class="metric-label">Start Time:</span><span class="metric-val">${metrics.start}s</span></div>
+                            <div class="metric-row"><span class="metric-label">End Time:</span><span class="metric-val">${metrics.end}s</span></div>
+                            <div class="metric-row"><span class="metric-label">Confidence:</span><span class="metric-val">${(metrics.confidence * 100).toFixed(1)}%</span></div>
+                            <div class="metric-row"><span class="metric-label">Peak Volume:</span><span class="metric-val">${metrics.db} dB</span></div>
+                            <div class="metric-row"><span class="metric-label">Clarity SNR:</span><span class="metric-val">${metrics.clarity} dB</span></div>`;
+                            
+                        if (seg.meta_metrics) {
+                            if (seg.meta_metrics.surprisal !== undefined) tooltipGrid += `<div class="metric-row"><span class="metric-label">Surprisal:</span><span class="metric-val">${seg.meta_metrics.surprisal}</span></div>`;
+                            if (seg.meta_metrics.in_character !== undefined) tooltipGrid += `<div class="metric-row"><span class="metric-label">In-Character %:</span><span class="metric-val">${Math.floor(seg.meta_metrics.in_character * 100)}%</span></div>`;
+                        }
+                        
+                        tooltipGrid += `</div>`;
+
+                        if (seg.annotations) {
+                            if (seg.annotations.emotion) {
+                                annotationsHtml += `<span class="annotation-badge emotion-badge tooltip">${seg.annotations.emotion.name} <span class="tooltiptext"><strong>Emotion Analysis</strong><hr style="border:0;border-top:1px solid #555;margin:4px 0;">${seg.annotations.emotion.reasoning}<br><br>${tooltipGrid}</span></span>`;
+                            }
+                            if (seg.annotations.context) {
+                                annotationsHtml += `<span class="annotation-badge context-badge tooltip">${seg.annotations.context.type} <span class="tooltiptext"><strong>Contextual Insight</strong><hr style="border:0;border-top:1px solid #555;margin:4px 0;">${seg.annotations.context.reasoning}<br><br>${tooltipGrid}</span></span>`;
+                            }
+                        } 
+                        
+                        // Fallback to purely metrics tooltip if no annotations exist on the entry
+                        if (!annotationsHtml) {
+                             annotationsHtml = `<span class="annotation-badge tooltip">⚙️ <span class="tooltiptext"><strong>Dialog Metrics</strong><hr style="border:0;border-top:1px solid #555;margin:4px 0;">${tooltipGrid}</span></span>`;
+                        }
+                    }
+                    
+                    html += `
+                        <div class="transcript-line" id="utterance-${idx}">
+                            <div class="speaker-label" style="color: ${spkColor}">
+                                ${speaker}
+                            </div>
+                            <div class="utterance-text">
+                                ${timestampHtml} 
+                                ${seg.text}
+                                ${annotationsHtml}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                transcriptBody.innerHTML = html;
+
+            } catch (err) {
+                console.error(err);
+                transcriptBody.innerHTML = `<p class="error">Exception rendering transcript: ${err.message}</p>`;
+            }
+        }
+        
+        window.addEventListener('popstate', (e) => {
+            renderTranscript();
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const path = urlParams.get('path');
+            if (path && typeof updateSidebarActiveState === 'function') {
+                updateSidebarActiveState(path);
+            }
+        });
+
+        // Run the universal sidebar loader for this campaign so the nav works
+        document.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const path = urlParams.get('path');
+            if (path && typeof loadSidebar === 'function') {
+                const campaignMatch = path.match(/^(.*?campaigns\/[^\/]+\/)/);
+                if (campaignMatch) {
+                    await loadSidebar(path, campaignMatch[1] + 'wiki/');
+                }
+            }
+        });
+
+        // Defer render slightly so sidebar fires concurrently without blocking
+        setTimeout(renderTranscript, 100);
+    </script>
+</body>
+</html>
