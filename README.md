@@ -116,16 +116,27 @@ You may optionally include a `common_misspellings` tag for players or entities t
 
 ## Usage
 
-Once configured, you can run the main pipeline. Ensure your virtual environment is active:
+Ensure your virtual environment is active:
 ```bash
 source dnd_env/bin/activate
 ```
 
-Then, execute the primary script:
+There are two primary ways to run processing: Interactive Mode (Recommended) or Automated CLI.
+
+### Interactive Wizard (Recommended)
+If you prefer a guided step-by-step terminal UI that lets you manually assign speakers by physically listening to isolated soundbites, use the interactive pipeline:
+
+```bash
+python bin/wizard_pipeline.py
+```
+This wizard will prompt you for the YouTube link/file path, ask for titles/dates, process extraction, dynamically stream the audio samples to your desktop, and let you type in names leveraging an autocomplete widget built precisely from your `campaign_registry.json`.
+
+### Automated CLI Pipeline (Advanced)
+If you prefer a totally headless "Point, Execute, Forget" workflow compatible with scheduled CRON tasks and batch scripts, you can execute the primary wrapper directly:
 ```bash
 python bin/run_pipeline.py /path/to/session.mp3 my_campaign 1 -l 90 --model qwen2.5
 ```
-- `<input>`: Path to the raw session audio file (or tracks folder)
+- `<input>`: Path to the raw session audio file, remote URL (e.g. YouTube), or tracks folder
 - `<campaign>`: Name of the campaign (e.g., `netherdeep`)
 - `<session>`: Session number (e.g., `1`)
 - `-l`, `--length`: Target audio recap length in seconds (optional, default: 90)

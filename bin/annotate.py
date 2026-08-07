@@ -211,6 +211,10 @@ if __name__ == "__main__":
     parser.add_argument("campaign", help="Name of the campaign (e.g. 'netherdeep')")
     parser.add_argument("session", type=int, help="Session number (e.g. 1)")
     parser.add_argument("-e", "--emotion-threshold", type=float, default=0.35, help="Minimum probability (0-1) to preserve an emotion tag (default 0.35)")
+    parser.add_argument("-m", "--model", help="Target model engine (Not currently utilized by annotate logic, absorbed for compatibility).")
+    parser.add_argument("-u", "--api-url", help="API URL for remote inference.")
+    parser.add_argument("-k", "--api-key", help="API Key for remote inference.")
+    parser.add_argument("--local", action="store_true", help="Force local inference usage and ignore defaults.json API URLs.")
     from utils import apply_defaults
     apply_defaults(parser, 'annotate.py')
     args = parser.parse_args()

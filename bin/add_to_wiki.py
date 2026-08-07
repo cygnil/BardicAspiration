@@ -238,10 +238,15 @@ if __name__ == "__main__":
     parser.add_argument("--model", "-m", type=str, default="qwen2.5", help="Model to use (default qwen2.5)")
     parser.add_argument("--url", "-u", type=str, help="Override API base URL")
     parser.add_argument("--key", "-k", type=str, help="Override API key")
+    parser.add_argument("--local", action="store_true", help="Force local inference usage and ignore defaults.json API URLs.")
 
     from utils import apply_defaults
     apply_defaults(parser, 'add_to_wiki.py')
     args = parser.parse_args()
+    
+    if getattr(args, "local", False):
+        args.url = None
+        args.key = None
 
     add_to_wiki(
         campaign=args.campaign,

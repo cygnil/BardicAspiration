@@ -27,7 +27,7 @@ if (!(Test-Path -Path ./dnd_env)) {
 # 4. Activate and Install
 echo "⬇️ Installing basic wrappers..."
 & .\dnd_env\Scripts\python.exe -m pip install --upgrade pip
-& .\dnd_env\Scripts\python.exe -m pip install pydub openai tqdm transformers matplotlib yt-dlp deno
+& .\dnd_env\Scripts\python.exe -m pip install pydub openai tqdm transformers matplotlib yt-dlp deno questionary
 
 echo "🔥 Installing PyTorch with Windows CUDA 12.1 GPU acceleration..."
 & .\dnd_env\Scripts\python.exe -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
@@ -57,5 +57,5 @@ if (!(Test-Path -Path ./plugins.json)) {
 # 6. Done
 echo "✨ DONE! You can now activate your environment using:"
 echo "./dnd_env/Scripts/Activate.ps1"
-echo "Or just run the pipeline script:"
-echo "python bin/run_pipeline.py"
+echo "Or just run the interactive terminal wizard:"
+echo "python bin/wizard_pipeline.py"

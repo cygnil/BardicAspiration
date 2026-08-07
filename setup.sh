@@ -33,7 +33,7 @@ echo "🎙️ Installing WhisperX speech-to-text alignment matrix from source...
 pip install git+https://github.com/m-bain/whisperX.git
 
 echo "🎵 Installing integration wrappers (OpenAI API compatibility, Pydub & Matplotlib)..."
-pip install pydub openai tqdm transformers matplotlib yt-dlp deno
+pip install pydub openai tqdm transformers matplotlib yt-dlp deno questionary
 
 echo "📂 Verifying project file structure..."
 mkdir -p campaigns
@@ -76,6 +76,8 @@ echo "    bin/annotate.py <campaign_name> <session_num>"
 echo "    bin/visualize.py <campaign_name> <session_num>"
 echo "    bin/summarize.py <campaign_name> <session_num>"
 echo "    bin/recap.py <campaign_name> <session_num>"
-echo " >> Or, run everything automatically using the pipeline:"
+echo " >> Or, run the interactive UI Wizard for guided execution:"
+echo "    bin/wizard_pipeline.py"
+echo " >> Or, run everything automatically using the background pipeline:"
 echo "    bin/run_pipeline.py /path/to/session.mp3 <campaign_name> <session_num>"
 echo "=========================================================="

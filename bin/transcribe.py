@@ -140,17 +140,13 @@ def transcribe_and_align(audio_path, device, compute_type, model, alignment_mode
 def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0, force_overwrite=False, extra_info=None, dedup=False):
     total_start_time = time.time()
     
-    # Establish directory structures
+    # Establish directory structures (Validation already handled at script entry)
     campaign_dir = os.path.join("campaigns", campaign_name)
     session_str = f"{str(session_num).zfill(3)}"
     target_dir = os.path.join(campaign_dir, "sessions", session_str)
     
     if os.path.exists(target_dir):
-        if not force_overwrite:
-            print(f"⚠️ Error: Target session directory '{target_dir}' already exists.")
-            print("To overwrite, supply the --force flag.")
-            sys.exit(1)
-        else:
+        if force_overwrite:
             print(f"⚡ Warning: Target session directory '{target_dir}' exists. Overwriting...")
     
     os.makedirs(target_dir, exist_ok=True)
@@ -430,6 +426,17 @@ if __name__ == "__main__":
     
     input_path = args.input_path
     
+    # Define session directory so we can validate it before doing a massive network pull
+    campaign_dir = os.path.join("campaigns", args.campaign_name)
+    session_str = f"{str(args.session_num).zfill(3)}"
+    target_dir = os.path.join(campaign_dir, "sessions", session_str)
+    
+    if os.path.exists(target_dir):
+        if not args.force:
+            print(f"⚠️ Error: Target session directory '{target_dir}' already exists.")
+            print("To overwrite, supply the --force flag.")
+            sys.exit(1)
+            
     # Check if input path is a URL and grab it using yt-dlp first if it is
     if input_path.startswith("http://") or input_path.startswith("https://"):
         print(f"🎬 Detected remote URL: {input_path}")
