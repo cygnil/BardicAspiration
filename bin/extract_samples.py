@@ -6,7 +6,7 @@ import os
 import sys
 import pydub
 
-def extract_samples(campaign_name, session_num, min_sample_length=3000, min_confidence=0.85):
+def extract_samples(campaign_name, session_num, min_sample_length=10000, min_confidence=0.85):
     session_str = f"{str(session_num).zfill(3)}"
     target_dir = os.path.join("campaigns", campaign_name, "sessions", session_str)
     transcript_path = os.path.join(target_dir, "transcript.json")
@@ -41,10 +41,9 @@ def extract_samples(campaign_name, session_num, min_sample_length=3000, min_conf
         start_ms = int(seg.get("transcription_metrics", {}).get("start", 0.0) * 1000)
         end_ms = int(seg.get("transcription_metrics", {}).get("end", 0.0) * 1000)
         
-        if (end_ms - start_ms) > min_sample_length:
-            if spk not in speaker_segments:
-                speaker_segments[spk] = []
-            speaker_segments[spk].append(seg)
+        if spk not in speaker_segments:
+            speaker_segments[spk] = []
+        speaker_segments[spk].append(seg)
             
     if not speaker_segments:
         print("⚠️ No valid segments found for any speaker.")
@@ -54,29 +53,42 @@ def extract_samples(campaign_name, session_num, min_sample_length=3000, min_conf
     os.makedirs(samples_dir, exist_ok=True)
     
     for spk, segs in speaker_segments.items():
-        # Score each segment based on both clarity and word count
-        # Combining them allows us to prioritize high clarity but heavily penalize segments that are mostly silence with one word/laugh
+        # Score each segment based on clarity/ambient noise difference
         def score_segment(s):
-            text = s.get("text", "").strip()
-            word_count = len(text.split())
             clarity = s.get("transcription_metrics", {}).get("clarity", 0.0)
+            ambient = s.get("transcription_metrics", {}).get("ambient", 0.0)
             
-            # If there's barely any words, heavily penalize. Otherwise, scale clarity by word count loosely
-            if word_count < 3:
-                return clarity * 0.1
-            return clarity * min(word_count, 15) # Cap multiplier so huge rambles don't strictly beat cleaner mid-length clips
+            # calculate difference
+            diff = clarity - ambient
+            return diff
 
-        best_seg = max(segs, key=score_segment)
+        segs.sort(key=score_segment, reverse=True)
         
-        start_ms = int(best_seg.get("transcription_metrics", {}).get("start", 0.0) * 1000)
-        end_ms = int(best_seg.get("transcription_metrics", {}).get("end", 0.0) * 1000)
-        clarity = best_seg.get("transcription_metrics", {}).get("clarity", 0.0)
-
+        selected_segs = []
+        total_duration = 0
+        
+        for s in segs:
+            start_ms = int(s.get("transcription_metrics", {}).get("start", 0.0) * 1000)
+            end_ms = int(s.get("transcription_metrics", {}).get("end", 0.0) * 1000)
+            dur = end_ms - start_ms
+            
+            selected_segs.append((start_ms, end_ms, score_segment(s), len(s.get("text", "").split())))
+            total_duration += dur
+            
+            if total_duration >= min_sample_length:
+                break
+                
         out_clip_path = os.path.join(samples_dir, f"{spk}.mp3")
-        score = score_segment(best_seg)
-        print(f"   => Exporting {spk} sample ({start_ms}ms to {end_ms}ms) | Clarity: {clarity} | Score: {score:.2f} | Words: {len(best_seg.get('text', '').split())}")
-        clip = master_audio[start_ms:end_ms]
-        clip.export(out_clip_path, format="mp3", bitrate="128k")
+        
+        print(f"   => Exporting {spk} combined sample (Target: >= {min_sample_length}ms, Actual: {total_duration}ms)")
+        
+        combined_clip = pydub.AudioSegment.empty()
+        for i, (start_ms, end_ms, score, words) in enumerate(selected_segs):
+            clarity_diff = score
+            print(f"      Part {i+1}: {start_ms}ms to {end_ms}ms | Clarity Diff: {clarity_diff:.2f} | Words: {words}")
+            combined_clip += master_audio[start_ms:end_ms]
+            
+        combined_clip.export(out_clip_path, format="mp3", bitrate="128k")
         
     print("🎉 Extraction complete!")
 
@@ -84,7 +96,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Extract optimal audio samples per speaker using clarity scores.")
     parser.add_argument("campaign", help="Name of the campaign")
     parser.add_argument("session", type=int, help="Session number")
-    parser.add_argument("-l", "--length", type=int, default=3000, help="Minimum sample length in milliseconds (default: 3000)")
+    parser.add_argument("-l", "--length", type=int, default=10000, help="Minimum sample length in milliseconds (default: 10000)")
     parser.add_argument("-c", "--confidence", type=float, default=0.85, help="Minimum speech confidence score (0-1.0)")
     from utils import apply_defaults
     apply_defaults(parser, 'extract_samples.py')

@@ -22,7 +22,7 @@ def load_secrets():
     except FileNotFoundError:
         return {}
 
-def run_matching(campaign, session_num):
+def run_matching(campaign, session_num, threshold=0.55):
     start_time = time.time()
     
     campaign_dir = os.path.join("campaigns", campaign)
@@ -119,8 +119,8 @@ def run_matching(campaign, session_num):
                     best_score = sim
                     best_match = r_name
             
-            # 0.55+ is generally a confident biometric match on resnet34 embeddings
-            if best_score >= 0.55:
+            # Match based on parameterized threshold
+            if best_score >= threshold:
                 print(f"  ✅ {speaker_id}  ->  {best_match} (Match Confidence: {best_score:.2f})")
                 speaker_identities[speaker_id] = best_match
                 matched_count += 1
@@ -147,8 +147,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Match extracted samples to reference audio using voice biometrics.")
     parser.add_argument("campaign", help="Campaign name")
     parser.add_argument("session", type=int, help="Session number")
+    parser.add_argument("-t", "--threshold", type=float, default=0.55, help="Match confidence threshold (default: 0.55)")
     from utils import apply_defaults
     apply_defaults(parser, 'match_speakers.py')
     args = parser.parse_args()
     
-    run_matching(args.campaign, args.session)
+    run_matching(args.campaign, args.session, args.threshold)

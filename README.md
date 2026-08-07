@@ -144,8 +144,9 @@ python bin/run_pipeline.py /path/to/session.mp3 my_campaign 1 -l 90 --model qwen
 - `-u`, `--api-url`: API URL for remote inference (optional)
 - `-k`, `--api-key`: API Key for remote inference (optional)
 - `-n`, `--next`: Peek at next session's summary to target foreshadowing (optional)
-- `--skip`: List of step numbers to skip (1-9) (optional, e.g. `--skip 1 3`)
+- `--skip`: List of step numbers to skip (1-10) (optional, e.g. `--skip 1 3`)
 - `--info`: Optional raw JSON string of extra session metadata to inject (optional)
+- `-t`, `--match-threshold`: Match confidence threshold for biometric matching (optional, default: 0.55)
 
 ### Pipeline Steps (For `--skip`)
 
@@ -153,14 +154,14 @@ The pipeline consists of the following 10 steps. You can pass these numbers to t
 
 1. **WhisperX Audio Transcription** (`transcribe.py`): Speech-to-text transcription with alignment.
 2. **Speaker Reference Sample Extraction** (`extract_samples.py`): Extracts audio samples for each detected speaker.
-* **Pre-Diarization Voice Biometric Mapping** (`match_speakers.py`): (Runs automatically alongside Step 2) Uses PyAnnote voice embeddings to cross-reference extracted samples against actual `.mp3` character profiles located in `campaigns/<campaign>/reference_audio/` and silently resolves their identity mapped dictionary automatically.
-3. **Scribe Identity Resolution** (`diarize.py`): Speaker diarization and identity mapping.
-4. **Zero-Shot Emotional & Contextual Inference** (`annotate.py`): Adds emotional and contextual annotations to the transcript.
-5. **Visual Summary Generation** (`visualize.py`): Generates visual timelines and summaries (e.g., HTML/CSS views).
-6. **LLM Context Mapping & Session Summary Synthesis** (`summarize.py`): AI-driven summary of the session.
-7. **Librarian Automated Entity Tracking** (`update_wiki.py`): Updates the campaign wiki with new entities.
-8. **Wiki Markdown Retroactive Entity Linker** (`relink_wiki.py`): Cross-references and links entities across wiki markdowns.
-9. **Pydub Cinematic Audio Recap Splicing** (`recap.py`): Generates the final cinematic audio recap.
+3. **Pre-Diarization Voice Biometric Mapping** (`match_speakers.py`): Uses PyAnnote voice embeddings to cross-reference extracted samples against actual `.mp3` character profiles located in `campaigns/<campaign>/reference_audio/` and silently resolves their identity mapped dictionary automatically.
+4. **Scribe Identity Resolution** (`diarize.py`): Speaker diarization and identity mapping.
+5. **Zero-Shot Emotional & Contextual Inference** (`annotate.py`): Adds emotional and contextual annotations to the transcript.
+6. **Visual Summary Generation** (`visualize.py`): Generates visual timelines and summaries (e.g., HTML/CSS views).
+7. **LLM Context Mapping & Session Summary Synthesis** (`summarize.py`): AI-driven summary of the session.
+8. **Librarian Automated Entity Tracking** (`update_wiki.py`): Updates the campaign wiki with new entities.
+9. **Wiki Markdown Retroactive Entity Linker** (`relink_wiki.py`): Cross-references and links entities across wiki markdowns.
+10. **Pydub Cinematic Audio Recap Splicing** (`recap.py`): Generates the final cinematic audio recap.
 
 ## Web Hosting
 

@@ -98,6 +98,7 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--next", action="store_true", help="Peek at session_num + 1 recap summary to target foreshadowing.")
     parser.add_argument("--skip", nargs="+", type=int, default=[], help="List of step numbers to skip (1-10).")
     parser.add_argument("--info", type=str, help="Optional raw JSON string of extra session metadata to inject.")
+    parser.add_argument("-t", "--match-threshold", type=float, default=0.55, help="Match confidence threshold for biometric matching (default: 0.55)")
     from utils import apply_defaults
     apply_defaults(parser, 'run_pipeline.py')
     args = parser.parse_args()
@@ -131,6 +132,8 @@ if __name__ == "__main__":
     # --- STEP 3: VOICE BIOMETRICS (AUTO-MAPPING) ---
     if 3 not in args.skip:
         match_cmd = [ENV_PYTHON, "bin/match_speakers.py", campaign, str(session_num)]
+        if args.match_threshold is not None:
+            match_cmd.extend(["-t", str(args.match_threshold)])
         run_command(match_cmd, "Pre-Diarization Voice Biometric Mapping")
 
     # --- STEP 4: DIARIZE ---
