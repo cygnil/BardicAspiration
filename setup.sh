@@ -61,7 +61,7 @@ fi
 # So we don't automatically drop a blank one in the root anymore.
 
 # Make all bin scripts executable
-chmod +x bin/*.py
+chmod +x bin/run_pipeline.py bin/transcribe.py bin/diarize.py bin/extract_samples.py bin/recap.py bin/summarize.py bin/update_wiki.py bin/visualize.py bin/utils.py bin/add_to_wiki.py bin/annotate.py bin/create_campaign.py bin/relink_wiki.py bin/revert_wiki.py bin/wizard_pipeline.py bin/match_speakers.py
 
 echo "=========================================================="
 echo "🎉 SETUP SUCCESSFUL!"

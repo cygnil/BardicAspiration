@@ -175,6 +175,10 @@ if __name__ == "__main__":
         extract_cmd = [ENV_PYTHON, "bin/extract_samples.py", campaign, str(session)]
         run_command(extract_cmd, "Vocal Profile Referencing Extraction")
         fire_hook("post_extract_samples", campaign, session)
+        
+        # Fire automated match logic right before asking the user! (It silently succeeds/fails and alters identities if possible)
+        match_cmd = [ENV_PYTHON, "bin/match_speakers.py", campaign, str(session)]
+        run_command(match_cmd, "Pre-Diarization Voice Biometric Mapping")
 
     # Interactive Identity Binding 
     assign_speakers = questionary.confirm("Do you want to manually assign Speaker IDs now by listening to samples? (If 'No', the AI Diarizer will try clustering them blindly instead)", default=False).ask()

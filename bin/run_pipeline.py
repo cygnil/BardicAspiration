@@ -96,7 +96,7 @@ if __name__ == "__main__":
     parser.add_argument("-k", "--api-key", help="API Key for remote inference.")
     parser.add_argument("--local", action="store_true", help="Force local inference (overrides defaults.json remote APIs).")
     parser.add_argument("-n", "--next", action="store_true", help="Peek at session_num + 1 recap summary to target foreshadowing.")
-    parser.add_argument("--skip", nargs="+", type=int, default=[], help="List of step numbers to skip (1-9).")
+    parser.add_argument("--skip", nargs="+", type=int, default=[], help="List of step numbers to skip (1-10).")
     parser.add_argument("--info", type=str, help="Optional raw JSON string of extra session metadata to inject.")
     from utils import apply_defaults
     apply_defaults(parser, 'run_pipeline.py')
@@ -128,26 +128,31 @@ if __name__ == "__main__":
         run_command(extract_cmd, "Speaker Reference Sample Extraction")
     fire_hook("post_extract_samples", campaign, session_num)
 
-    # --- STEP 3: DIARIZE ---
+    # --- STEP 3: VOICE BIOMETRICS (AUTO-MAPPING) ---
     if 3 not in args.skip:
+        match_cmd = [ENV_PYTHON, "bin/match_speakers.py", campaign, str(session_num)]
+        run_command(match_cmd, "Pre-Diarization Voice Biometric Mapping")
+
+    # --- STEP 4: DIARIZE ---
+    if 4 not in args.skip:
         diarize_cmd = [ENV_PYTHON, "bin/diarize.py", campaign, str(session_num)]
         run_command(diarize_cmd, "Scribe Identity Resolution")
     fire_hook("post_diarize", campaign, session_num)
     
-    # --- STEP 4: ANNOTATE ---
-    if 4 not in args.skip:
+    # --- STEP 5: ANNOTATE ---
+    if 5 not in args.skip:
         annotate_cmd = [ENV_PYTHON, "bin/annotate.py", campaign, str(session_num)]
         run_command(annotate_cmd, "Zero-Shot Emotional & Contextual Inference")
     fire_hook("post_annotate", campaign, session_num)
 
-    # --- STEP 5: VISUALIZE ---
-    if 5 not in args.skip:
+    # --- STEP 6: VISUALIZE ---
+    if 6 not in args.skip:
         visualize_cmd = [ENV_PYTHON, "bin/visualize.py", campaign, str(session_num)]
         run_command(visualize_cmd, "Visual Summary Generation")
     fire_hook("post_visualize", campaign, session_num)
 
-    # --- STEP 6: ANALYZE / SUMMARIZE ---
-    if 6 not in args.skip:
+    # --- STEP 7: ANALYZE / SUMMARIZE ---
+    if 7 not in args.skip:
         summarize_cmd = [ENV_PYTHON, "bin/summarize.py", campaign, str(session_num)]
         if args.api_url: summarize_cmd.extend(["-u", args.api_url])
         if args.api_key: summarize_cmd.extend(["-k", args.api_key])
@@ -155,8 +160,8 @@ if __name__ == "__main__":
         run_command(summarize_cmd, "LLM Context Mapping & Session Summary Synthesis")
     fire_hook("post_summarize", campaign, session_num)
     
-    # --- STEP 7: UPDATE WIKI ---
-    if 7 not in args.skip:
+    # --- STEP 8: UPDATE WIKI ---
+    if 8 not in args.skip:
         wiki_cmd = [ENV_PYTHON, "bin/update_wiki.py", campaign, str(session_num)]
         if args.api_url: wiki_cmd.extend(["-u", args.api_url])
         if args.api_key: wiki_cmd.extend(["-k", args.api_key])
@@ -164,14 +169,14 @@ if __name__ == "__main__":
         run_command(wiki_cmd, "Librarian Automated Entity Tracking")
     fire_hook("post_update_wiki", campaign, session_num)
 
-    # --- STEP 8: WIKI CROSS-REFERENCE RELINKING ---
-    if 8 not in args.skip:
+    # --- STEP 9: WIKI CROSS-REFERENCE RELINKING ---
+    if 9 not in args.skip:
         relink_cmd = [ENV_PYTHON, "bin/relink_wiki.py", campaign]
         run_command(relink_cmd, "Wiki Markdown Retroactive Entity Linker")
     fire_hook("post_relink_wiki", campaign, session_num)
 
-    # --- STEP 9: AUDIO RECAP COMPILATION ---
-    if 9 not in args.skip:
+    # --- STEP 10: AUDIO RECAP COMPILATION ---
+    if 10 not in args.skip:
         recap_cmd = [
             ENV_PYTHON, "bin/recap.py", campaign, str(session_num),
             "-l", str(args.length)

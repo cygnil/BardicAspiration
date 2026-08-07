@@ -149,10 +149,11 @@ python bin/run_pipeline.py /path/to/session.mp3 my_campaign 1 -l 90 --model qwen
 
 ### Pipeline Steps (For `--skip`)
 
-The pipeline consists of the following 9 steps. You can pass these numbers to the `--skip` argument to bypass specific stages (e.g., `--skip 1 2 3`):
+The pipeline consists of the following 10 steps. You can pass these numbers to the `--skip` argument to bypass specific stages (e.g., `--skip 1 2 3`):
 
 1. **WhisperX Audio Transcription** (`transcribe.py`): Speech-to-text transcription with alignment.
 2. **Speaker Reference Sample Extraction** (`extract_samples.py`): Extracts audio samples for each detected speaker.
+* **Pre-Diarization Voice Biometric Mapping** (`match_speakers.py`): (Runs automatically alongside Step 2) Uses PyAnnote voice embeddings to cross-reference extracted samples against actual `.mp3` character profiles located in `campaigns/<campaign>/reference_audio/` and silently resolves their identity mapped dictionary automatically.
 3. **Scribe Identity Resolution** (`diarize.py`): Speaker diarization and identity mapping.
 4. **Zero-Shot Emotional & Contextual Inference** (`annotate.py`): Adds emotional and contextual annotations to the transcript.
 5. **Visual Summary Generation** (`visualize.py`): Generates visual timelines and summaries (e.g., HTML/CSS views).
