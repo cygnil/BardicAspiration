@@ -184,9 +184,9 @@ if __name__ == "__main__":
     parser.add_argument("campaign", help="Name of the campaign (e.g. 'netherdeep')")
     parser.add_argument("session", type=int, help="Session number (e.g. 1)")
     parser.add_argument("-m", "--model", default="qwen2.5", help="Target model name (default: qwen2.5).")
-    parser.add_argument("-u", "--api-url", help="Optional remote API base URL (e.g. OpenAI, Anthropic via LiteLLM, Groq). If not specified, uses local Ollama.")
+    parser.add_argument("-u", "--api-url", help="Optional remote API base URL (e.g. OpenAI, Anthropic via LiteLLM, Groq). If not specified, uses local inference.")
     parser.add_argument("-k", "--api-key", help="Optional API key for the remote endpoint.")
-    parser.add_argument("--local", action="store_true", help="Force local Ollama usage and ignore defaults.json API URLs.")
+    parser.add_argument("--local", action="store_true", help="Force local inference usage and ignore defaults.json API URLs.")
     
     from utils import apply_defaults
     apply_defaults(parser, 'summarize.py')

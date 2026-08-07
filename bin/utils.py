@@ -15,10 +15,10 @@ CAMPAIGNS_DIR = BASE_DIR / "campaigns"
 WWW_DIR = BASE_DIR / "www"
 
 def get_wsl_host_ip() -> str:
-    """Dynamically parses the Linux routing table to bridge to Windows Ollama."""
+    """Dynamically parses the Linux routing table if necessary to bridge to a host local API."""
     try:
         if platform.system() == "Windows":
-             return os.getenv("OLLAMA_HOST", "127.0.0.1")
+             return os.getenv("LOCAL_HOST", "127.0.0.1")
         elif platform.system() == "Darwin": # MacOS
              return "127.0.0.1" # or whatever MacOS routing requires
         else: # Linux/WSL
@@ -28,7 +28,7 @@ def get_wsl_host_ip() -> str:
     except Exception:
         return "127.0.0.1"
 
-WINDOWS_HOST_IP = get_wsl_host_ip()
+LOCAL_HOST_IP = get_wsl_host_ip()
 
 def load_secrets() -> dict:
     secrets_path = BASE_DIR / "secrets.json"
@@ -92,8 +92,8 @@ def get_api_client(api_url: str | None = None, api_key: str | None = None) -> Op
                 api_key = secrets.get("API_KEYS", {}).get(domain)
         return OpenAI(base_url=api_url, api_key=api_key if api_key else "dummy_key")
     else:
-        print(f"🔗 Connected to Windows Ollama Host at: http://{WINDOWS_HOST_IP}:11434")
-        return OpenAI(base_url=f"http://{WINDOWS_HOST_IP}:11434/v1", api_key="ollama")
+        print(f"🔗 Connected to Local Host at: http://{LOCAL_HOST_IP}:11434")
+        return OpenAI(base_url=f"http://{LOCAL_HOST_IP}:11434/v1", api_key="local")
 
 import threading
 

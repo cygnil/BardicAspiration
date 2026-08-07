@@ -22,7 +22,7 @@ SAMPLE_LENGTH = 3000  # Minimum sample length in milliseconds
 
 print("⚡ Script initializing...")
 
-# --- NETWORK RESILIENCE: WINDOWS HOST LOOKUP ---
+# --- NETWORK RESILIENCE: HOST LOOKUP ---
 def get_wsl_host_ip():
     try:
         cmd = "ip route | grep default | awk '{print $3}'"
@@ -31,7 +31,7 @@ def get_wsl_host_ip():
     except Exception:
         return "127.0.0.1"
 
-WINDOWS_HOST_IP = get_wsl_host_ip()
+LOCAL_HOST_IP = get_wsl_host_ip()
 
 def get_api_client(api_url=None, api_key=None):
     from urllib.parse import urlparse
@@ -44,8 +44,8 @@ def get_api_client(api_url=None, api_key=None):
                 api_key = secrets.get("API_KEYS", {}).get(domain)
         return OpenAI(base_url=api_url, api_key=api_key if api_key else "dummy_key")
     else:
-        print(f"⚡ Connected to Windows Ollama Host at: http://{WINDOWS_HOST_IP}:11434")
-        return OpenAI(base_url=f"http://{WINDOWS_HOST_IP}:11434/v1", api_key=api_key if api_key else "ollama")
+        print(f"⚡ Connected to Local Host at: http://{LOCAL_HOST_IP}:11434")
+        return OpenAI(base_url=f"http://{LOCAL_HOST_IP}:11434/v1", api_key=api_key if api_key else "local")
 
 # --- CONFIGURATION & SECRET EXTRACTOR ---
 def load_secrets():

@@ -241,10 +241,10 @@ if __name__ == "__main__":
     parser.add_argument("campaign", help="Name of the campaign")
     parser.add_argument("session", type=int, help="Session number")
     parser.add_argument("-f", "--force", action="store_true", help="Force overwrite existing session entries in the wiki")
-    parser.add_argument("-m", "--model", default="qwen2.5", help="Target Ollama model engine.")
+    parser.add_argument("-m", "--model", default="qwen2.5", help="Target local model engine.")
     parser.add_argument("-u", "--api-url", help="API URL for remote inference.")
     parser.add_argument("-k", "--api-key", help="API Key for remote inference.")
-    parser.add_argument("--local", action="store_true", help="Force local Ollama usage and ignore defaults.json API URLs.")
+    parser.add_argument("--local", action="store_true", help="Force local inference usage and ignore defaults.json API URLs.")
     
     from utils import apply_defaults
     apply_defaults(parser, 'update_wiki.py')

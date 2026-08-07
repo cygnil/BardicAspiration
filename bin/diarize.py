@@ -149,7 +149,7 @@ if __name__ == "__main__":
     parser.add_argument("-u", "--api-url", default=None, help="Optional OpenAI-compatible API endpoint (e.g., https://api.openai.com/v1)")
     parser.add_argument("-k", "--api-key", default=None, help="API Key for remote endpoint. Overrides local secrets.json")
     parser.add_argument("-m", "--model", default="qwen2.5", help="Model to use for summarization. Default: qwen2.5. Good remote choice: gpt-4o")
-    parser.add_argument("--local", action="store_true", help="Force local Ollama usage and ignore defaults.json API URLs.")
+    parser.add_argument("--local", action="store_true", help="Force local inference usage and ignore defaults.json API URLs.")
     from utils import apply_defaults
     apply_defaults(parser, 'diarize.py')
     args = parser.parse_args()

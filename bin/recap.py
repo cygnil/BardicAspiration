@@ -69,12 +69,12 @@ def rank_audio_segments(client, transcript_data, registry, model_name, summary_t
     payload += f"Transcript Dataset:\n{json.dumps(safe_condensed)}"
 
     try:
-        # Check if we're using Ollama JSON mode or standard provider output
+        # Check if we're using local inference JSON mode or standard provider output
         is_local = False
         if client.base_url:
             base_url_str = str(client.base_url)
-            windows_ip = get_wsl_host_ip()
-            if windows_ip in base_url_str or "localhost" in base_url_str or "127.0.0.1" in base_url_str:
+            host_env_ip = get_wsl_host_ip()
+            if host_env_ip in base_url_str or "localhost" in base_url_str or "127.0.0.1" in base_url_str:
                 is_local = True
 
         if is_local:
@@ -143,7 +143,7 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--model", default="qwen2.5", help="Target LLM model (default: qwen2.5).")
     parser.add_argument("-u", "--api-url", help="Optional remote API base URL.")
     parser.add_argument("-k", "--api-key", help="Optional API key for the remote endpoint.")
-    parser.add_argument("--local", action="store_true", help="Force local Ollama usage and ignore defaults.json API URLs.")
+    parser.add_argument("--local", action="store_true", help="Force local inference usage and ignore defaults.json API URLs.")
     
     from utils import apply_defaults
     apply_defaults(parser)
