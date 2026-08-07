@@ -218,7 +218,7 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
         sys.exit(1)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    compute_type = "int8_float16"
+    compute_type = "float16" if torch.cuda.is_available() else "int8"
     raw_segments = []
 
     print(f"⚡ Engine active on [{device.upper()}] using {compute_type} precision.")
@@ -228,7 +228,14 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
     spinner_thread = threading.Thread(target=animate_spinner, args=(stop_model, f"Loading WhisperX (large-v3) into {device.upper()} VRAM..."))
     spinner_thread.start()
 
-    asr_options = {"initial_prompt": HOTWORDS} if HOTWORDS else None
+    asr_options = {
+        "initial_prompt": HOTWORDS,
+        "beam_size": 5,        # Increase beam size for better accuracy
+        "best_of": 5           # Keep the top 5 candidates during beam search
+    } if HOTWORDS else {
+        "beam_size": 5,
+        "best_of": 5
+    }
     model = whisperx.load_model("large-v3", device, compute_type=compute_type, language="en", asr_options=asr_options)
     alignment_model, metadata = whisperx.load_align_model(language_code="en", device=device)
 

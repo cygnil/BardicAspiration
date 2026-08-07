@@ -10,7 +10,7 @@ import torch
 import warnings
 from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer, logging as hf_logging
 
-# Suppress harmless config warnings from older models like distilgpt2
+# Suppress harmless config warnings from older models
 hf_logging.set_verbosity_error()
 warnings.filterwarnings('ignore', category=UserWarning)
 
@@ -21,8 +21,8 @@ def append_surprisal_metric(segments, device):
     print("📈 Analyzing dialogue surprisal (weirdness/uniqueness)...")
     start_time = time.time()
     
-    # We use a very tiny causal LM to quickly calculate perplexity/loss
-    model_id = "distilgpt2"
+    # We use a medium causal LM to calculate perplexity/loss with much higher accuracy
+    model_id = "gpt2-medium"
     tokenizer = AutoTokenizer.from_pretrained(model_id, token=HF_TOKEN)
     model = AutoModelForCausalLM.from_pretrained(model_id, token=HF_TOKEN)
     
@@ -113,7 +113,7 @@ def append_zero_shot_metrics(segments, device, threshold):
     start_time = time.time()
     
     # Using a stronger zero-shot classifier
-    classifier = pipeline("zero-shot-classification", model="cross-encoder/nli-deberta-v3-large", device=0 if device == "cuda" else -1, token=HF_TOKEN)
+    classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli", device=0 if device == "cuda" else -1, token=HF_TOKEN)
     texts_to_classify = [seg.get("text", "") for seg in segments]
     
     # Analyze in-character vs out-of-character
