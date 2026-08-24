@@ -16,11 +16,21 @@ async function loadMarkdown() {
                 let campsList = '<ul style="font-size: 1.2rem; line-height: 2;">';
                 let foundCampaigns = false;
                 for (const link of links) {
-                    const href = link.getAttribute('href');
-                    if (href && href.endsWith('/') && !href.startsWith('.')) {
-                        foundCampaigns = true;
-                        const campName = decodeURIComponent(href.replace(/\//g, ''));
-                        campsList += `<li><a href="index.html?path=campaigns/${href}wiki/index.json"><strong>${campName}</strong></a></li>`;
+                    let href = link.getAttribute('href');
+                    
+                    // Skip query params, hidden folders, and Parent Directory links
+                    if (href && !href.startsWith('.') && !href.startsWith('?') && !href.startsWith('/')) {
+                        // Support relative directory paths (e.g. from Apache "netherdeep/")
+                        if (href.endsWith('/')) {
+                            // Extract just the campaign folder name
+                            const pathParts = href.split('/').filter(Boolean);
+                            if (pathParts.length > 0) {
+                                const folderName = pathParts[pathParts.length - 1];
+                                foundCampaigns = true;
+                                const campName = decodeURIComponent(folderName);
+                                campsList += `<li><a href="index.html?path=campaigns/${folderName}/wiki/index.json"><strong>${campName}</strong></a></li>`;
+                            }
+                        }
                     }
                 }
                 campsList += '</ul>';
@@ -485,7 +495,8 @@ window.addEventListener('popstate', (e) => {
 
 // Initialize the loader when the DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    if (typeof loadMarkdown === 'function' && (window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('session.html') || window.location.pathname === '/')) {
+    // Also trigger if the path ends with a directory slash, assuming index.html is loaded implicitly
+    if (typeof loadMarkdown === 'function' && (window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('session.html') || window.location.pathname.endsWith('/'))) {
         loadMarkdown();
     }
 });
