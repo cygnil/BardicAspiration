@@ -17,7 +17,7 @@ def load_session_file(path):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def run_analysis_agent(session_data, session_metadata, client, model_name="qwen2.5"):
+def run_analysis_agent(session_data, session_metadata, client, model_name="qwen2.5", extra_instructions=None):
     transcript = session_data["transcript"]
     
     # We provide the FULL lexicon down to the LLM agent for plot alignment
@@ -58,6 +58,9 @@ def run_analysis_agent(session_data, session_metadata, client, model_name="qwen2
         
         with open("prompts/chronicler.txt", "r", encoding="utf-8") as f:
             master_reduce_prompt_template = f.read()
+
+        if extra_instructions:
+            master_reduce_prompt_template += f"\n\nAdditional special instructions from the user to follow: {extra_instructions}"
 
         master_payload = f"Session Metadata:\n{json.dumps(session_metadata, indent=2)}\n\nCampaign Context:\n{registry_info}\n\nTranscript:\n{transcript_text}"
 
@@ -122,6 +125,9 @@ def run_analysis_agent(session_data, session_metadata, client, model_name="qwen2
     with open("prompts/archivist.txt", "r", encoding="utf-8") as f:
         archivist_prompt_template = f.read()
 
+    if extra_instructions:
+        archivist_prompt_template += f"\n\nAdditional special instructions from the user to follow: {extra_instructions}"
+
     partial_summaries = []
     
     for i, chunk_text in enumerate(chunks):
@@ -155,6 +161,9 @@ def run_analysis_agent(session_data, session_metadata, client, model_name="qwen2
     with open("prompts/chronicler.txt", "r", encoding="utf-8") as f:
         master_reduce_prompt_template = f.read()
 
+    if extra_instructions:
+        master_reduce_prompt_template += f"\n\nAdditional special instructions from the user to follow: {extra_instructions}"
+
     # Concatenate the lossless bullet points natively in Python
     master_text = "\n\n--- NEXT SEGMENT ---\n\n".join(partial_summaries)
     master_payload = f"Master Bullet Points:\n{master_text}"
@@ -187,6 +196,7 @@ if __name__ == "__main__":
     parser.add_argument("-u", "--api-url", help="Optional remote API base URL (e.g. OpenAI, Anthropic via LiteLLM, Groq). If not specified, uses local inference.")
     parser.add_argument("-k", "--api-key", help="Optional API key for the remote endpoint.")
     parser.add_argument("--local", action="store_true", help="Force local inference usage and ignore defaults.json API URLs.")
+    parser.add_argument("-i", "--instructions", help="Additional specific instructions for the agent (e.g. things to not miss).")
     
     from utils import apply_defaults
     apply_defaults(parser, 'summarize.py')
@@ -234,7 +244,7 @@ if __name__ == "__main__":
     
     client = get_api_client(api_url=args.api_url, api_key=args.api_key)
     
-    markdown_report = run_analysis_agent(data, metadata, client, model_name=args.model)
+    markdown_report = run_analysis_agent(data, metadata, client, model_name=args.model, extra_instructions=args.instructions)
     
     media_url = metadata.get("media_url")
     if media_url:
