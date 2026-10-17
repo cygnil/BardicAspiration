@@ -3,7 +3,10 @@
 from utils import animate_spinner
 import argparse
 import difflib
+import gc
+import hashlib
 import json
+import math
 import os
 import sys
 import time
@@ -79,65 +82,244 @@ def get_audio_duration(audio_array):
     # duration in seconds = number of samples / sample rate
     return len(audio_array) / 16000.0
 
-def transcribe_and_align(audio_path, device, compute_type, model, alignment_model, metadata, db_threshold=-45.0, initial_prompt=None):
-    print(f"⚡ Audio engine reading track target: {audio_path}")
-    audio = whisperx.load_audio(audio_path)
-    audio_duration_sec = get_audio_duration(audio)
-    
-    if db_threshold is not None:
-        print(f"⚡ Applying noise gating (Silence detection below {db_threshold} dB)...")
-        # Calculate RMS amplitude
-        rms = np.abs(audio)
-        # Avoid log10(0)
-        rms = np.maximum(rms, 1e-10)
-        # Convert to dB relative to max possible amplitude (assuming float32 audio [-1.0, 1.0])
-        db = 20 * np.log10(rms)
-        # Zero out audio below threshold
-        audio[db < db_threshold] = 0.0
-    else:
-        # Still need db calculated for segment logging if db_threshold isn't used for gating
-        rms = np.abs(audio)
-        rms = np.maximum(rms, 1e-10)
-        db = 20 * np.log10(rms)
-    
-    print("⚠️ Step 1/2: Processing deep voice transcription arrays...")
-    result = model.transcribe(audio, batch_size=4, language="en")
-    
-    print("⚡ Step 2/2: Aligning phonemes for sub-second precision...")
-    aligned_result = whisperx.align(
-        result["segments"], alignment_model, metadata, audio, device, return_char_alignments=False
+def clear_gpu_memory():
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
+def is_out_of_memory(error):
+    message = str(error).lower()
+    return isinstance(error, torch.cuda.OutOfMemoryError) or (
+        "out of memory" in message or "cuda_error_out_of_memory" in message
     )
-    
-    # Add peak dB calculation per segment
-    sr = 16000
-    for seg in aligned_result["segments"]:
-        start_sample = int(seg.get("start", 0) * sr)
-        end_sample = int(seg.get("end", 0) * sr)
-        # clamp to array bounds safely
-        start_sample = max(0, min(start_sample, len(db)))
-        end_sample = max(0, min(end_sample, len(db)))
-        
-        if end_sample > start_sample:
-            # find peak db in this segment
-            # use 95th percentile to avoid outlier clicks but represent volume well
-            peak_db = np.percentile(db[start_sample:end_sample], 95)
-            
-            # calculate clarity (signal-to-noise proxy based on db variance and min floor)
-            # A clean voice goes from silence (low db) to loud voice (high db) quickly, high variance
-            # A noisy background always has high db, lower variance
-            median_db = np.median(db[start_sample:end_sample])
-            clarity = peak_db - median_db
+
+
+def transcribe_with_retry(model, audio, batch_size):
+    while True:
+        try:
+            return model.transcribe(audio, batch_size=batch_size, language="en")
+        except RuntimeError as error:
+            if not is_out_of_memory(error):
+                raise
+            if batch_size == 1:
+                raise RuntimeError(
+                    "Transcription ran out of memory at batch size 1. "
+                    "Resume with --resume --device cpu, or use a smaller --model."
+                ) from error
+        batch_size = max(1, batch_size // 2)
+        clear_gpu_memory()
+        print(f"GPU memory exhausted; retrying window with batch size {batch_size}.")
+
+
+def load_transcription_model(model_name, device, compute_type, initial_prompt):
+    options = {"initial_prompt": initial_prompt, "beam_size": 5, "best_of": 5}
+    try:
+        model = whisperx.load_model(
+            model_name, device, compute_type=compute_type, language="en", asr_options=options,
+        )
+        return model, device, compute_type
+    except RuntimeError as error:
+        if device != "cuda" or not is_out_of_memory(error):
+            raise
+    clear_gpu_memory()
+    print("Whisper model exhausted GPU memory while loading; falling back to CPU.")
+    model = whisperx.load_model(
+        model_name, "cpu", compute_type="int8", language="en", asr_options=options,
+    )
+    return model, "cpu", "int8"
+
+
+def load_audio_window(audio_path, start, duration, db_threshold):
+    result = subprocess.run(
+        ["ffmpeg", "-nostdin", "-v", "error", "-ss", str(start), "-i", audio_path,
+         "-t", str(duration), "-f", "f32le", "-ac", "1", "-ar", "16000", "-"],
+        capture_output=True, check=True,
+    )
+    audio = np.frombuffer(result.stdout, dtype="<f4").copy()
+    db = 20 * np.log10(np.maximum(np.abs(audio), 1e-10))
+    if db_threshold is not None:
+        audio[db < db_threshold] = 0.0
+    return audio, db
+
+
+def save_checkpoint(path, data):
+    temporary_path = path + ".tmp"
+    with open(temporary_path, "w", encoding="utf-8") as checkpoint:
+        json.dump(data, checkpoint, ensure_ascii=False)
+    os.replace(temporary_path, path)
+
+
+def merge_window_segments(segments, offset, core_start, core_end, db):
+    merged = []
+    for segment in segments:
+        segment = dict(segment)
+        words = [dict(word) for word in segment.get("words", [])]
+        retained_words = []
+        for word in words:
+            midpoint = (word.get("start", segment["start"]) + word.get("end", segment["end"])) / 2
+            if core_start <= offset + midpoint < core_end:
+                for key in ("start", "end"):
+                    if key in word:
+                        word[key] = round(word[key] + offset, 3)
+                retained_words.append(word)
+        if words:
+            if not retained_words:
+                continue
+            if len(retained_words) != len(words):
+                segment["text"] = " ".join(word["word"] for word in retained_words)
+            segment["start"] = retained_words[0].get("start", offset + segment["start"])
+            segment["end"] = retained_words[-1].get("end", offset + segment["end"])
+            segment["words"] = retained_words
         else:
-            peak_db = -100.0 # silence fallback
-            clarity = 0.0
-            
-        seg["db"] = round(float(peak_db), 2)
-        seg["clarity"] = round(float(clarity), 2)
-        
-    return aligned_result["segments"], audio_duration_sec
+            midpoint = offset + (segment["start"] + segment["end"]) / 2
+            if not core_start <= midpoint < core_end:
+                continue
+            segment["start"] += offset
+            segment["end"] += offset
+        start_sample = max(0, int((segment["start"] - offset) * 16000))
+        end_sample = min(len(db), int((segment["end"] - offset) * 16000))
+        values = db[start_sample:end_sample]
+        peak_db = float(np.percentile(values, 95)) if len(values) else -100.0
+        clarity = peak_db - float(np.median(values)) if len(values) else 0.0
+        segment["db"] = round(peak_db, 2)
+        segment["clarity"] = round(clarity, 2)
+        merged.append(segment)
+    return merged
 
 
-def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0, force_overwrite=False, extra_info=None, dedup=False):
+def transcribe_and_align(audio_path, device, compute_type, checkpoint_dir,
+                         db_threshold=-45.0, initial_prompt=None, batch_size=1,
+                         model_name="large-v3", window_seconds=300, resume=False):
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", audio_path],
+        capture_output=True, check=True, text=True,
+    )
+    duration = float(json.loads(probe.stdout)["format"]["duration"])
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError(f"Invalid audio duration for {audio_path}: {duration}")
+    source = os.stat(audio_path)
+    identity = [1, os.path.abspath(audio_path), source.st_size, source.st_mtime_ns,
+                db_threshold, initial_prompt, model_name, window_seconds]
+    cache_key = hashlib.sha256(json.dumps(identity).encode()).hexdigest()
+    track_dir = os.path.join(checkpoint_dir, cache_key)
+    os.makedirs(track_dir, exist_ok=True)
+    windows = []
+    for index in range(math.ceil(duration / window_seconds)):
+        core_start = index * window_seconds
+        core_end = min(duration, core_start + window_seconds)
+        start = max(0, core_start - 2)
+        end = min(duration, core_end + 2)
+        windows.append((index, start, end - start, core_start, core_end))
+        if not resume:
+            for stage in ("asr", "aligned"):
+                previous = os.path.join(track_dir, f"{index:05d}.{stage}.json")
+                if os.path.exists(previous):
+                    os.remove(previous)
+
+    def cache_path(index, stage):
+        return os.path.join(track_dir, f"{index:05d}.{stage}.json")
+
+    def cached(index, stage):
+        path = cache_path(index, stage)
+        if not resume or not os.path.exists(path):
+            return None
+        try:
+            with open(path, "r", encoding="utf-8") as checkpoint:
+                return json.load(checkpoint)
+        except (OSError, ValueError):
+            return None
+
+    model = None
+    try:
+        for index, start, length, core_start, core_end in windows:
+            if cached(index, "aligned") is not None or cached(index, "asr") is not None:
+                continue
+            if model is None:
+                print(f"Loading {model_name} on {device} ({compute_type}).")
+                model, device, compute_type = load_transcription_model(
+                    model_name, device, compute_type, initial_prompt,
+                )
+            print(f"Transcribing window {index + 1}/{len(windows)}: {audio_path}")
+            audio, db = load_audio_window(audio_path, start, length, db_threshold)
+            try:
+                result = transcribe_with_retry(model, audio, batch_size)
+            except RuntimeError as error:
+                if device != "cuda" or not is_out_of_memory(error):
+                    raise
+                result = None
+            if result is None:
+                print("Transcription exhausted GPU memory at batch size 1; retrying on CPU.")
+                model = None
+                clear_gpu_memory()
+                device, compute_type = "cpu", "int8"
+                model, device, compute_type = load_transcription_model(
+                    model_name, device, compute_type, initial_prompt,
+                )
+                result = transcribe_with_retry(model, audio, 1)
+            save_checkpoint(cache_path(index, "asr"), result["segments"])
+            del audio, db, result
+    finally:
+        del model
+        clear_gpu_memory()
+
+    alignment_model = None
+    segments = []
+    try:
+        for index, start, length, core_start, core_end in windows:
+            aligned = cached(index, "aligned")
+            if aligned is not None:
+                print(f"Resuming aligned window {index + 1}/{len(windows)}.")
+                segments.extend(aligned)
+                continue
+            with open(cache_path(index, "asr"), "r", encoding="utf-8") as checkpoint:
+                transcript = json.load(checkpoint)
+            if not transcript:
+                save_checkpoint(cache_path(index, "aligned"), [])
+                continue
+            if alignment_model is None:
+                try:
+                    alignment_model, metadata = whisperx.load_align_model(language_code="en", device=device)
+                except RuntimeError as error:
+                    if device != "cuda" or not is_out_of_memory(error):
+                        raise
+                if alignment_model is None:
+                    print("Alignment model exhausted GPU memory while loading; falling back to CPU.")
+                    clear_gpu_memory()
+                    device = "cpu"
+                    alignment_model, metadata = whisperx.load_align_model(language_code="en", device=device)
+            print(f"Aligning window {index + 1}/{len(windows)}: {audio_path}")
+            audio, db = load_audio_window(audio_path, start, length, db_threshold)
+            try:
+                result = whisperx.align(
+                    transcript, alignment_model, metadata, audio, device, return_char_alignments=False,
+                )
+            except RuntimeError as error:
+                if device != "cuda" or not is_out_of_memory(error):
+                    raise
+                result = None
+            if result is None:
+                print("Alignment exhausted GPU memory; retrying on CPU.")
+                alignment_model = alignment_model.to("cpu")
+                device = "cpu"
+                clear_gpu_memory()
+                result = whisperx.align(
+                    transcript, alignment_model, metadata, audio, device, return_char_alignments=False,
+                )
+            aligned = merge_window_segments(result["segments"], start, core_start, core_end, db)
+            save_checkpoint(cache_path(index, "aligned"), aligned)
+            segments.extend(aligned)
+            del audio, db, result
+    finally:
+        del alignment_model
+        clear_gpu_memory()
+    return segments, duration
+
+
+def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0, force_overwrite=False, extra_info=None, dedup=False,
+                     batch_size=1, compute_type=None, model_name="large-v3", window_seconds=300, resume=False, device=None):
+    if batch_size < 1 or not math.isfinite(window_seconds) or window_seconds <= 4:
+        raise ValueError("batch_size must be positive and window_seconds must be greater than 4.")
     total_start_time = time.time()
     
     # Establish directory structures (Validation already handled at script entry)
@@ -217,38 +399,32 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
         print(f"❌ Error: Input path '{input_path}' does not exist.")
         sys.exit(1)
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    compute_type = "float16" if torch.cuda.is_available() else "int8"
+    import ctranslate2
+    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    supported_types = ctranslate2.get_supported_compute_types(device)
+    if compute_type is None:
+        preferences = ("int8_float16", "float16", "int8", "float32") if device == "cuda" else ("int8", "float32")
+        compute_type = next(precision for precision in preferences if precision in supported_types)
+    elif compute_type not in supported_types:
+        raise ValueError(f"{compute_type} is not supported on {device}; choose from {sorted(supported_types)}.")
     raw_segments = []
 
     print(f"⚡ Engine active on [{device.upper()}] using {compute_type} precision.")
 
-    # Needs whisper loaded FIRST!
-    stop_model = threading.Event()
-    spinner_thread = threading.Thread(target=animate_spinner, args=(stop_model, f"Loading WhisperX (large-v3) into {device.upper()} VRAM..."))
-    spinner_thread.start()
-
-    asr_options = {
-        "initial_prompt": HOTWORDS,
-        "beam_size": 5,        # Increase beam size for better accuracy
-        "best_of": 5           # Keep the top 5 candidates during beam search
-    } if HOTWORDS else {
-        "beam_size": 5,
-        "best_of": 5
+    transcription_options = {
+        "device": device, "compute_type": compute_type,
+        "checkpoint_dir": os.path.join(target_dir, ".transcription_checkpoints"),
+        "db_threshold": db_threshold, "initial_prompt": HOTWORDS,
+        "batch_size": batch_size, "model_name": model_name,
+        "window_seconds": window_seconds, "resume": resume,
     }
-    model = whisperx.load_model("large-v3", device, compute_type=compute_type, language="en", asr_options=asr_options)
-    alignment_model, metadata = whisperx.load_align_model(language_code="en", device=device)
-
-    stop_model.set()
-    spinner_thread.join()
-    print(f"⚠️ Models loaded.                                                          ")
 
     if os.path.isdir(input_path):
         print(f"⚡ Processing multi-track directory ({len(audio_files)} tracks)...")
         multi_track_start_time = time.time()
         for file_path in tqdm(audio_files, desc="Overall Transcription Progress", unit="track"):
             speaker_identity = os.path.splitext(os.path.basename(file_path))[0].upper()
-            segments, audio_dur = transcribe_and_align(file_path, device, compute_type, model, alignment_model, metadata, db_threshold, initial_prompt=HOTWORDS)
+            segments, audio_dur = transcribe_and_align(file_path, **transcription_options)
             
             # Record maximum duration across tracks
             session_info["length_seconds"] = max(session_info.get("length_seconds", 0), audio_dur)
@@ -300,50 +476,38 @@ def process_pipeline(input_path, campaign_name, session_num, db_threshold=-45.0,
             
     # ⚡ MODE B:
     elif os.path.isfile(input_path):
-        import datetime
-        from pydub import AudioSegment
-        
-        try:
-            audio = whisperx.load_audio(input_path)
-        except Exception as e:
-            print(f"❌ Error: Failed to open media file '{input_path}'. It may be corrupted or an unsupported format.")
-            print(f"   Details: {e}")
-            sys.exit(1)
-            
-        audio_duration = len(audio) / 16000 # Sample rate is 16kHz
-        formatted_duration = str(datetime.timedelta(seconds=int(audio_duration)))
-        print(f"⚡ Audio loaded. Sequence duration: {formatted_duration}")
-        print(f"⚡ Loading PyDub Master Audio Segment...")
-        master_audio = AudioSegment.from_file(input_path)
-        
-        stop_transcribe = threading.Event()
         transcribe_start_time = time.time()
-            
-        spinner_thread = threading.Thread(target=animate_spinner, args=(stop_transcribe, "WhisperX transcribing and aligning master audio file..."))
-        spinner_thread.start()
-        
-        segments, audio_dur = transcribe_and_align(input_path, device, compute_type, model, alignment_model, metadata, db_threshold, initial_prompt=HOTWORDS)
+        segments, audio_dur = transcribe_and_align(input_path, **transcription_options)
         session_info["length_seconds"] = audio_dur
-        
-        stop_transcribe.set()
-        spinner_thread.join()
         print(f"⚠️ Core transcription complete. ({time.time() - transcribe_start_time:.2f}s)                                     ")
-            
-        print("⚠️ Clearing transcription VRAM layers...")
-        del model, alignment_model
-        torch.cuda.empty_cache()
             
         stop_diarize = threading.Event()
         diarize_model_start_time = time.time()
         spinner_thread = threading.Thread(target=animate_spinner, args=(stop_diarize, "Running PyAnnote speaker diarization (Voice tracking)..."))
         spinner_thread.start()
             
-        diarize_model = DiarizationPipeline(token=HF_TOKEN, device=device)
-        audio_data = whisperx.load_audio(input_path)
-        diarize_segments = diarize_model(audio_data)
-            
-        stop_diarize.set()
-        spinner_thread.join()
+        diarize_model = None
+        try:
+            audio_data = whisperx.load_audio(input_path)
+            try:
+                diarize_model = DiarizationPipeline(token=HF_TOKEN, device=device)
+                diarize_segments = diarize_model(audio_data)
+            except RuntimeError as error:
+                if device != "cuda" or not is_out_of_memory(error):
+                    raise
+                diarize_segments = None
+            if diarize_segments is None:
+                print("Diarization exhausted GPU memory; retrying on CPU.")
+                diarize_model = None
+                clear_gpu_memory()
+                diarize_model = DiarizationPipeline(token=HF_TOKEN, device="cpu")
+                diarize_segments = diarize_model(audio_data)
+        finally:
+            stop_diarize.set()
+            spinner_thread.join()
+            del diarize_model
+            clear_gpu_memory()
+        del audio_data
         print(f"⚠️ Diarization complete. ({time.time() - diarize_model_start_time:.2f}s)")
             
         print("⚡ Correlating vocal tracks to script layers...")
@@ -427,9 +591,19 @@ if __name__ == "__main__":
     parser.add_argument("--dedup", "-d", action="store_true", help="Deduplicate microphone bleed across multi-track processing based on peak dB comparison.")
     parser.add_argument("--force", "-f", action="store_true", help="Bypass cached files and force execution.")
     parser.add_argument("--details", type=str)
+    parser.add_argument("--batch-size", type=int, default=1, help="Whisper batch size; reduced automatically on GPU OOM (default: 1).")
+    parser.add_argument("--compute-type", choices=["int8_float16", "float16", "int8", "float32"], help="Whisper precision; defaults to int8_float16 on supported GPUs, int8 on CPU.")
+    parser.add_argument("--model", default="large-v3", help="Whisper model name (default: large-v3).")
+    parser.add_argument("--window-seconds", type=float, default=300, help="Checkpoint window duration, greater than 4 seconds (default: 300).")
+    parser.add_argument("--resume", action="store_true", help="Reuse compatible transcription/alignment checkpoints in an existing session.")
+    parser.add_argument("--device", choices=["cuda", "cpu"], help="Inference device (default: CUDA when available).")
     from utils import apply_defaults
     apply_defaults(parser, 'transcribe.py')
     args = parser.parse_args()
+    if args.batch_size < 1:
+        parser.error("--batch-size must be at least 1")
+    if not math.isfinite(args.window_seconds) or args.window_seconds <= 4:
+        parser.error("--window-seconds must be finite and greater than 4")
     
     input_path = args.input_path
     
@@ -439,9 +613,9 @@ if __name__ == "__main__":
     target_dir = os.path.join(campaign_dir, "sessions", session_str)
     
     if os.path.exists(target_dir):
-        if not args.force:
+        if not args.force and not args.resume:
             print(f"⚠️ Error: Target session directory '{target_dir}' already exists.")
-            print("To overwrite, supply the --force flag.")
+            print("To overwrite, supply --force. To continue checkpointed work, supply --resume.")
             sys.exit(1)
             
     # Check if input path is a URL and grab it using yt-dlp first if it is
@@ -478,8 +652,9 @@ if __name__ == "__main__":
             }
         }
         
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([input_path])
+        if not (args.resume and os.path.isfile(f"{download_target_base}.mp3")):
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([input_path])
             
         download_target_final = f"{download_target_base}.mp3"
         print(f"✅ Finished downloading to: {download_target_final}")
@@ -490,4 +665,7 @@ if __name__ == "__main__":
     if args.db_threshold is not None and args.db_threshold > 0:
         args.db_threshold = -args.db_threshold
         
-    process_pipeline(input_path, args.campaign_name, args.session_num, args.db_threshold, args.force, getattr(args, "details", None), args.dedup)
+    process_pipeline(input_path, args.campaign_name, args.session_num, args.db_threshold, args.force,
+                     getattr(args, "details", None), args.dedup, batch_size=args.batch_size,
+                     compute_type=args.compute_type, model_name=args.model, window_seconds=args.window_seconds,
+                     resume=args.resume, device=args.device)
