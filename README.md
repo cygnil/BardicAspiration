@@ -163,6 +163,36 @@ The pipeline consists of the following 10 steps. You can pass these numbers to t
 9. **Wiki Markdown Retroactive Entity Linker** (`relink_wiki.py`): Cross-references and links entities across wiki markdowns.
 10. **Pydub Cinematic Audio Recap Splicing** (`recap.py`): Generates the final cinematic audio recap.
 
+### Transcription Memory and Recovery
+
+Transcription defaults to batch size 1 and `int8_float16` on supported GPUs
+(otherwise a supported precision is selected). Whisper and alignment models are
+loaded separately. Audio is decoded in five-minute windows with two seconds of
+context on either side; word timestamps determine window ownership to reduce
+boundary duplication. Checkpoints are saved after transcription and alignment
+under the session's `.transcription_checkpoints` directory.
+
+```bash
+python bin/transcribe.py recording.mp3 netherdeep 12
+python bin/transcribe.py recording.mp3 netherdeep 12 --resume
+```
+
+GPU out-of-memory errors reduce the transcription batch size, then fall back to
+CPU if batch size 1 still fails. Alignment and single-file speaker diarization
+also retry on CPU. CPU processing can be substantially slower. Diarization still
+loads the full recording into system RAM to preserve session-wide speaker identities.
+
+Optional transcription controls: `--batch-size 4`, `--compute-type float16`,
+`--model medium`, `--window-seconds 120`, and `--device cpu`. These flags apply to
+direct invocations of the transcription script. `--resume` reuses compatible
+checkpoints, including across device or precision changes; changing the source
+file, model, noise threshold, campaign hotwords, or window size starts fresh work.
+Without `--resume`, checkpoints are regenerated; `--force` permits replacing an
+existing session. Final transcript output remains unchanged in structure.
+
+Run the focused regression checks with `python -m unittest discover -s tests -v`
+in the project environment (requires NumPy and FFmpeg, but no models or GPU).
+
 ## Web Hosting
 
 The generated files and campaign wiki are designed to be easily hosted as a static website. The root `www/` directory contains the core HTML, CSS, and JS components to display and navigate your campaigns.
